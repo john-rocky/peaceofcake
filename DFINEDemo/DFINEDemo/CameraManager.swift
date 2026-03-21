@@ -1,0 +1,107 @@
+import AVFoundation
+import SwiftUI
+
+class CameraManager: NSObject, ObservableObject {
+    @Published var detections: [Detection] = []
+    @Published var inferenceTime: Double = 0
+    @Published var isRunning = false
+    @Published var permissionDenied = false
+
+    let captureSession = AVCaptureSession()
+    private let videoOutput = AVCaptureVideoDataOutput()
+    private let processingQueue = DispatchQueue(label: "com.dfine.camera", qos: .userInitiated)
+
+    private var detector: ObjectDetector?
+    private var threshold: Float = 0.5
+    private var isProcessingFrame = false
+
+    func setupCamera() {
+        captureSession.sessionPreset = .hd1280x720
+
+        guard let device = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .back),
+              let input = try? AVCaptureDeviceInput(device: device)
+        else { return }
+
+        if captureSession.canAddInput(input) {
+            captureSession.addInput(input)
+        }
+
+        videoOutput.setSampleBufferDelegate(self, queue: processingQueue)
+        videoOutput.alwaysDiscardsLateVideoFrames = true
+        videoOutput.videoSettings = [
+            kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA
+        ]
+
+        if captureSession.canAddOutput(videoOutput) {
+            captureSession.addOutput(videoOutput)
+        }
+
+        if let connection = videoOutput.connection(with: .video) {
+            connection.videoRotationAngle = 90
+        }
+    }
+
+    func checkPermissionAndStart(detector: ObjectDetector, threshold: Float) {
+        self.detector = detector
+        self.threshold = threshold
+
+        switch AVCaptureDevice.authorizationStatus(for: .video) {
+        case .authorized:
+            startSession()
+        case .notDetermined:
+            AVCaptureDevice.requestAccess(for: .video) { [weak self] granted in
+                DispatchQueue.main.async {
+                    if granted {
+                        self?.startSession()
+                    } else {
+                        self?.permissionDenied = true
+                    }
+                }
+            }
+        default:
+            DispatchQueue.main.async { self.permissionDenied = true }
+        }
+    }
+
+    private func startSession() {
+        setupCamera()
+        processingQueue.async { [weak self] in
+            self?.captureSession.startRunning()
+            DispatchQueue.main.async { self?.isRunning = true }
+        }
+    }
+
+    func stop() {
+        processingQueue.async { [weak self] in
+            self?.captureSession.stopRunning()
+            DispatchQueue.main.async { self?.isRunning = false }
+        }
+    }
+
+    func updateThreshold(_ newThreshold: Float) {
+        threshold = newThreshold
+    }
+}
+
+extension CameraManager: AVCaptureVideoDataOutputSampleBufferDelegate {
+    func captureOutput(_ output: AVCaptureOutput, didOutput sampleBuffer: CMSampleBuffer, from connection: AVCaptureConnection) {
+        guard !isProcessingFrame else { return }
+        isProcessingFrame = true
+
+        guard let pixelBuffer = CMSampleBufferGetImageBuffer(sampleBuffer),
+              let detector = self.detector
+        else {
+            isProcessingFrame = false
+            return
+        }
+
+        let currentThreshold = threshold
+        let result = detector.detect(pixelBuffer: pixelBuffer, threshold: currentThreshold)
+
+        DispatchQueue.main.async { [weak self] in
+            self?.detections = result.detections
+            self?.inferenceTime = result.inferenceTime
+            self?.isProcessingFrame = false
+        }
+    }
+}
