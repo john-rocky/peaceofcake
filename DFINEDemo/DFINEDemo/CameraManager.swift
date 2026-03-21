@@ -6,6 +6,7 @@ class CameraManager: NSObject, ObservableObject {
     @Published var inferenceTime: Double = 0
     @Published var isRunning = false
     @Published var permissionDenied = false
+    @Published var frameSize = CGSize(width: 720, height: 1280)
 
     let captureSession = AVCaptureSession()
     private let videoOutput = AVCaptureVideoDataOutput()
@@ -14,6 +15,7 @@ class CameraManager: NSObject, ObservableObject {
     private var detector: ObjectDetector?
     private var threshold: Float = 0.5
     private var isProcessingFrame = false
+    private var frameSizeSet = false
 
     func setupCamera() {
         captureSession.sessionPreset = .hd1280x720
@@ -93,6 +95,15 @@ extension CameraManager: AVCaptureVideoDataOutputSampleBufferDelegate {
         else {
             isProcessingFrame = false
             return
+        }
+
+        if !frameSizeSet {
+            let w = CVPixelBufferGetWidth(pixelBuffer)
+            let h = CVPixelBufferGetHeight(pixelBuffer)
+            frameSizeSet = true
+            DispatchQueue.main.async { [weak self] in
+                self?.frameSize = CGSize(width: w, height: h)
+            }
         }
 
         let currentThreshold = threshold

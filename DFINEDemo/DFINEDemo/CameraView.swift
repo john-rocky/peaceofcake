@@ -23,16 +23,17 @@ struct CameraView: View {
                     .background(Color(.systemGroupedBackground))
                 } else {
                     CameraPreviewView(session: cameraManager.captureSession)
-                        .ignoresSafeArea()
 
                     GeometryReader { geometry in
                         CameraDetectionOverlayView(
                             detections: filteredDetections,
-                            viewSize: geometry.size
+                            viewSize: geometry.size,
+                            frameSize: cameraManager.frameSize
                         )
                     }
                 }
             }
+            .clipped()
             .frame(maxWidth: .infinity, maxHeight: .infinity)
 
             VStack(spacing: 8) {
@@ -79,6 +80,7 @@ struct CameraView: View {
 struct CameraDetectionOverlayView: View {
     let detections: [Detection]
     let viewSize: CGSize
+    let frameSize: CGSize
 
     private let colors: [Color] = [
         .red, .green, .blue, .orange, .purple,
@@ -86,13 +88,9 @@ struct CameraDetectionOverlayView: View {
     ]
 
     var body: some View {
+        let transform = aspectFillTransform()
         ForEach(detections) { detection in
-            let rect = CGRect(
-                x: detection.boundingBox.origin.x * viewSize.width,
-                y: detection.boundingBox.origin.y * viewSize.height,
-                width: detection.boundingBox.width * viewSize.width,
-                height: detection.boundingBox.height * viewSize.height
-            )
+            let rect = scaledRect(detection.boundingBox, transform: transform)
             let color = colors[detection.labelIndex % colors.count]
 
             Rectangle()
@@ -110,5 +108,39 @@ struct CameraDetectionOverlayView: View {
                 .cornerRadius(3)
                 .position(x: rect.minX + 40, y: max(rect.minY - 10, 8))
         }
+    }
+
+    private struct FillTransform {
+        let scale: CGFloat
+        let offsetX: CGFloat
+        let offsetY: CGFloat
+    }
+
+    /// Compute how AVCaptureVideoPreviewLayer with .resizeAspectFill
+    /// maps the camera frame onto the view.
+    private func aspectFillTransform() -> FillTransform {
+        guard frameSize.width > 0 && frameSize.height > 0 else {
+            return FillTransform(scale: 1, offsetX: 0, offsetY: 0)
+        }
+        let scale = max(viewSize.width / frameSize.width,
+                        viewSize.height / frameSize.height)
+        let displayedWidth = frameSize.width * scale
+        let displayedHeight = frameSize.height * scale
+        let offsetX = (viewSize.width - displayedWidth) / 2
+        let offsetY = (viewSize.height - displayedHeight) / 2
+        return FillTransform(scale: scale, offsetX: offsetX, offsetY: offsetY)
+    }
+
+    /// Map a normalized bounding box (0-1, relative to full camera frame)
+    /// to the view coordinates, accounting for aspectFill crop.
+    private func scaledRect(_ normalizedRect: CGRect, transform t: FillTransform) -> CGRect {
+        let displayedWidth = frameSize.width * t.scale
+        let displayedHeight = frameSize.height * t.scale
+        return CGRect(
+            x: t.offsetX + normalizedRect.origin.x * displayedWidth,
+            y: t.offsetY + normalizedRect.origin.y * displayedHeight,
+            width: normalizedRect.width * displayedWidth,
+            height: normalizedRect.height * displayedHeight
+        )
     }
 }
