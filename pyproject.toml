@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=68.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "peaceofcake"
+version = "0.1.0"
+description = "Simple vision model training and deployment. Apache 2.0."
+license = "Apache-2.0"
+requires-python = ">=3.9"
+dependencies = [
+    "torch>=2.0",
+    "torchvision>=0.15",
+    "Pillow",
+    "PyYAML",
+    "numpy",
+]
+
+[project.optional-dependencies]
+export = ["onnx", "onnxsim", "coremltools>=7.0"]
+
+[tool.setuptools.packages.find]
+include = ["peaceofcake*"]

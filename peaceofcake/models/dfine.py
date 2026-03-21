@@ -1,0 +1,113 @@
+import sys
+from pathlib import Path
+from typing import Any, Dict
+
+import torch
+
+from peaceofcake.engine.model import BaseModel
+from peaceofcake.cfg.defaults import (
+    DFINE_MODEL_REGISTRY,
+    DFINE_SIZES,
+    get_dfine_config_path,
+    get_dfine_root,
+)
+from peaceofcake.utils.downloads import download_pretrained
+
+
+class DFINE(BaseModel):
+    """D-FINE object detection model.
+
+    Usage:
+        model = DFINE("dfine-l-coco")         # pretrained
+        model = DFINE("path/to/weights.pth")   # local checkpoint
+        model = DFINE("dfine-n")               # random init
+    """
+
+    def __init__(self, model_name_or_path: str = "dfine-l-coco"):
+        self._model_size = None
+        self._dfine_config_path = None
+        super().__init__(model_name_or_path, task="detect")
+
+    @property
+    def task_map(self) -> Dict[str, Dict[str, Any]]:
+        from peaceofcake.engine.trainer import DFINETrainer
+        from peaceofcake.engine.predictor import DFINEPredictor
+        from peaceofcake.engine.exporter import DFINEExporter
+
+        return {
+            "detect": {
+                "trainer": DFINETrainer,
+                "predictor": DFINEPredictor,
+                "exporter": DFINEExporter,
+            }
+        }
+
+    def _setup(self, model_name_or_path: str):
+        self._ensure_dfine_importable()
+
+        if model_name_or_path in DFINE_MODEL_REGISTRY:
+            entry = DFINE_MODEL_REGISTRY[model_name_or_path]
+            self._model_size = entry["size"]
+            self._dfine_config_path = get_dfine_config_path(entry["size"])
+
+            if entry.get("url"):
+                self.ckpt_path = download_pretrained(entry["url"], entry.get("filename"))
+                self._load_model(self.ckpt_path)
+            else:
+                self._load_model(None)
+
+        elif Path(model_name_or_path).exists() and model_name_or_path.endswith(".pth"):
+            self.ckpt_path = model_name_or_path
+            self._model_size = self._detect_size(model_name_or_path)
+            self._dfine_config_path = get_dfine_config_path(self._model_size)
+            self._load_model(model_name_or_path)
+
+        else:
+            available = list(DFINE_MODEL_REGISTRY.keys())
+            raise ValueError(
+                f"Cannot resolve '{model_name_or_path}'. "
+                f"Expected one of {available} or a path to a .pth file."
+            )
+
+        print(f"D-FINE-{self._model_size.upper()} loaded"
+              f"{' (pretrained)' if self.ckpt_path else ' (random init)'}")
+
+    def _ensure_dfine_importable(self):
+        try:
+            from src.core import YAMLConfig  # noqa: F401
+        except ImportError:
+            dfine_root = get_dfine_root()
+            sys.path.insert(0, str(dfine_root))
+
+    def _load_model(self, ckpt_path):
+        from src.core import YAMLConfig
+
+        cfg = YAMLConfig(self._dfine_config_path)
+        if "HGNetv2" in cfg.yaml_cfg:
+            cfg.yaml_cfg["HGNetv2"]["pretrained"] = False
+
+        self.model = cfg.model
+        self.cfg_obj = cfg
+
+        if ckpt_path:
+            checkpoint = torch.load(ckpt_path, map_location="cpu")
+            if "ema" in checkpoint:
+                state = checkpoint["ema"]["module"]
+            else:
+                state = checkpoint.get("model", checkpoint)
+            self.model.load_state_dict(state, strict=False)
+
+    def _detect_size(self, path: str) -> str:
+        stem = Path(path).stem.lower()
+        for size in ["n", "s", "m", "l", "x"]:
+            if f"_{size}_" in stem or stem.endswith(f"_{size}"):
+                return size
+        # Fallback: guess from param count
+        state = torch.load(path, map_location="cpu")
+        model_state = state.get("model", state.get("ema", {}).get("module", state))
+        n = sum(v.numel() for v in model_state.values())
+        if n < 6_000_000: return "n"
+        elif n < 15_000_000: return "s"
+        elif n < 25_000_000: return "m"
+        elif n < 50_000_000: return "l"
+        else: return "x"
