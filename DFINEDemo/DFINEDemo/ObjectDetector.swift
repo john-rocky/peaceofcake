@@ -15,16 +15,40 @@ class ObjectDetector: ObservableObject {
     private var model: MLModel?
     private let inputSize: CGFloat = 640
     private let ciContext = CIContext()
+    @Published var currentModelName: String = ""
 
     init() {
-        loadModel()
+        if let first = Self.availableModels().first {
+            loadModel(named: first)
+        }
     }
 
-    private func loadModel() {
-        guard let modelURL = Bundle.main.url(forResource: "dfine_n_coco", withExtension: "mlmodelc")
-            ?? Bundle.main.url(forResource: "dfine_n_coco", withExtension: "mlpackage")
+    static func availableModels() -> [String] {
+        let extensions = ["mlmodelc", "mlpackage"]
+        var names: Set<String> = []
+        for ext in extensions {
+            if let urls = Bundle.main.urls(forResourcesWithExtension: ext, subdirectory: nil) {
+                for url in urls {
+                    let name = url.deletingPathExtension().lastPathComponent
+                    if name.hasPrefix("dfine") {
+                        names.insert(name)
+                    }
+                }
+            }
+        }
+        return names.sorted()
+    }
+
+    func switchModel(_ name: String) {
+        guard name != currentModelName else { return }
+        loadModel(named: name)
+    }
+
+    private func loadModel(named name: String) {
+        guard let modelURL = Bundle.main.url(forResource: name, withExtension: "mlmodelc")
+            ?? Bundle.main.url(forResource: name, withExtension: "mlpackage")
         else {
-            print("[D-FINE] Failed to find model in bundle")
+            print("[D-FINE] Failed to find model: \(name)")
             return
         }
 
@@ -32,7 +56,8 @@ class ObjectDetector: ObservableObject {
             let config = MLModelConfiguration()
             config.computeUnits = .all
             model = try MLModel(contentsOf: modelURL, configuration: config)
-            print("[D-FINE] Model loaded successfully")
+            currentModelName = name
+            print("[D-FINE] Loaded \(name)")
         } catch {
             print("[D-FINE] Failed to load model: \(error)")
         }

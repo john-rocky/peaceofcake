@@ -5,16 +5,17 @@ struct ContentView: View {
     @StateObject private var detector = ObjectDetector()
     @State private var selectedTab = 0
     @State private var threshold: Float = 0.5
+    @State private var availableModels: [String] = ObjectDetector.availableModels()
 
     var body: some View {
         TabView(selection: $selectedTab) {
-            PhotoDetectionView(detector: detector, threshold: $threshold)
+            PhotoDetectionView(detector: detector, threshold: $threshold, availableModels: availableModels)
                 .tabItem {
                     Label("Photo", systemImage: "photo")
                 }
                 .tag(0)
 
-            CameraView(detector: detector, threshold: $threshold)
+            CameraView(detector: detector, threshold: $threshold, availableModels: availableModels)
                 .tabItem {
                     Label("Camera", systemImage: "camera")
                 }
@@ -26,6 +27,7 @@ struct ContentView: View {
 struct PhotoDetectionView: View {
     @ObservedObject var detector: ObjectDetector
     @Binding var threshold: Float
+    let availableModels: [String]
     @State private var selectedItem: PhotosPickerItem?
     @State private var selectedImage: UIImage?
     @State private var detections: [Detection] = []
@@ -97,6 +99,19 @@ struct PhotoDetectionView: View {
             .navigationTitle("D-FINE Demo")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    if availableModels.count > 1 {
+                        Picker("Model", selection: Binding(
+                            get: { detector.currentModelName },
+                            set: { detector.switchModel($0) }
+                        )) {
+                            ForEach(availableModels, id: \.self) { name in
+                                Text(name).tag(name)
+                            }
+                        }
+                        .pickerStyle(.menu)
+                    }
+                }
                 ToolbarItem(placement: .topBarTrailing) {
                     PhotosPicker(selection: $selectedItem, matching: .images) {
                         Image(systemName: "photo.badge.plus")

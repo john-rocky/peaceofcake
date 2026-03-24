@@ -4,8 +4,10 @@ struct CameraView: View {
     @StateObject private var cameraManager = CameraManager()
     @ObservedObject var detector: ObjectDetector
     @Binding var threshold: Float
+    let availableModels: [String]
 
     var body: some View {
+        NavigationStack {
         VStack(spacing: 0) {
             ZStack {
                 if cameraManager.permissionDenied {
@@ -70,6 +72,24 @@ struct CameraView: View {
         .onChange(of: threshold) { _, newValue in
             cameraManager.updateThreshold(newValue)
         }
+        .navigationTitle("D-FINE Camera")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .topBarLeading) {
+                if availableModels.count > 1 {
+                    Picker("Model", selection: Binding(
+                        get: { detector.currentModelName },
+                        set: { detector.switchModel($0) }
+                    )) {
+                        ForEach(availableModels, id: \.self) { name in
+                            Text(name).tag(name)
+                        }
+                    }
+                    .pickerStyle(.menu)
+                }
+            }
+        }
+        } // NavigationStack
     }
 
     private var filteredDetections: [Detection] {
