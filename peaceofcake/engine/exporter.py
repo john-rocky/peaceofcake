@@ -73,40 +73,30 @@ class DFINEExporter:
         self, output=None, img_size=640, min_target="iOS17",
         precision="FLOAT16", compute_units="ALL", **kw,
     ) -> str:
+        import json
         model, postprocessor = self._get_model_and_postprocessor()
 
         class CoreMLModel(nn.Module):
-            def __init__(self, m, pp, input_size):
+            """Output confidence [N, C] and coordinates [N, 4] (normalized xywh)
+            for Xcode detection preview compatibility."""
+            def __init__(self, m, pp):
                 super().__init__()
                 self.model = m.deploy()
                 pp.deploy()
-                self.num_classes = pp.num_classes
-                self.num_top_queries = pp.num_top_queries
                 self.use_focal_loss = pp.use_focal_loss
-                self.register_buffer(
-                    "orig_target_sizes",
-                    torch.tensor([[input_size, input_size]], dtype=torch.float32),
-                )
 
             def forward(self, images):
                 outputs = self.model(images)
-                logits, boxes = outputs["pred_logits"], outputs["pred_boxes"]
-                cx, cy, w, h = boxes.unbind(-1)
-                bbox_pred = torch.stack([cx - 0.5*w, cy - 0.5*h, cx + 0.5*w, cy + 0.5*h], dim=-1)
-                bbox_pred = bbox_pred * self.orig_target_sizes.repeat(1, 2).unsqueeze(1)
+                logits = outputs["pred_logits"]
+                boxes = outputs["pred_boxes"]  # cxcywh normalized [0,1]
                 if self.use_focal_loss:
-                    scores = F.sigmoid(logits)
-                    scores, index = torch.topk(scores.flatten(1), self.num_top_queries, dim=-1)
-                    labels = index - index // self.num_classes * self.num_classes
-                    index = index // self.num_classes
-                    gather_idx = index.unsqueeze(-1).expand(-1, -1, bbox_pred.shape[-1]).to(torch.int32)
-                    boxes = bbox_pred.gather(dim=1, index=gather_idx)
+                    confidence = F.sigmoid(logits)
                 else:
-                    scores = F.softmax(logits, dim=-1)[:, :, :-1]
-                    scores, labels = scores.max(dim=-1)
-                return labels, boxes, scores
+                    confidence = F.softmax(logits, dim=-1)[:, :, :-1]
+                # Squeeze batch dim: [1, N, C] -> [N, C], [1, N, 4] -> [N, 4]
+                return confidence.squeeze(0), boxes.squeeze(0)
 
-        export_model = CoreMLModel(model, postprocessor, img_size).eval()
+        export_model = CoreMLModel(model, postprocessor).eval()
 
         # Fix project tensor for CoreML linear op
         decoder = export_model.model.decoder.decoder
@@ -137,11 +127,21 @@ class DFINEExporter:
                 name="image", shape=(1, 3, img_size, img_size),
                 scale=1.0/255.0, bias=[0, 0, 0], color_layout=ct.colorlayout.RGB,
             )],
-            outputs=[ct.TensorType(name="labels"), ct.TensorType(name="boxes"), ct.TensorType(name="scores")],
+            outputs=[
+                ct.TensorType(name="confidence"),
+                ct.TensorType(name="coordinates"),
+            ],
             minimum_deployment_target=targets.get(min_target, ct.target.iOS17),
             convert_to="mlprogram",
             compute_precision=precisions.get(precision.upper(), ct.precision.FLOAT16),
             compute_units=units.get(compute_units.upper(), ct.ComputeUnit.ALL),
+        )
+
+        # Set Xcode detection preview metadata
+        from peaceofcake.results.detection import COCO_NAMES
+        coreml_model.user_defined_metadata["com.apple.coreml.model.preview.type"] = "objectDetector"
+        coreml_model.user_defined_metadata["com.apple.coreml.model.preview.params"] = json.dumps(
+            {"labels": COCO_NAMES}
         )
 
         output = output or "model.mlpackage"

@@ -100,37 +100,46 @@ class ObjectDetector: ObservableObject {
     }
 
     private func parseOutput(_ output: MLFeatureProvider, threshold: Float) -> [Detection] {
-        guard let scoresArray = output.featureValue(for: "scores")?.multiArrayValue,
-              let labelsArray = output.featureValue(for: "labels")?.multiArrayValue,
-              let boxesArray = output.featureValue(for: "boxes")?.multiArrayValue
+        guard let confidenceArray = output.featureValue(for: "confidence")?.multiArrayValue,
+              let coordsArray = output.featureValue(for: "coordinates")?.multiArrayValue
         else { return [] }
 
-        let numDetections = scoresArray.shape.last!.intValue
+        let numQueries = confidenceArray.shape[0].intValue
+        let numClasses = confidenceArray.shape[1].intValue
         var detections: [Detection] = []
 
-        for i in 0..<numDetections {
-            let score = scoresArray[[0, i] as [NSNumber]].floatValue
-            guard score >= threshold else { continue }
+        for i in 0..<numQueries {
+            // Find best class for this query
+            var bestScore: Float = 0
+            var bestClass: Int = 0
+            for c in 0..<numClasses {
+                let score = confidenceArray[[i, c] as [NSNumber]].floatValue
+                if score > bestScore {
+                    bestScore = score
+                    bestClass = c
+                }
+            }
+            guard bestScore >= threshold else { continue }
 
-            let labelIdx = Int(labelsArray[[0, i] as [NSNumber]].floatValue)
-            let labelName = (labelIdx >= 0 && labelIdx < cocoLabels.count) ? cocoLabels[labelIdx] : "class_\(labelIdx)"
+            let labelName = (bestClass >= 0 && bestClass < cocoLabels.count) ? cocoLabels[bestClass] : "class_\(bestClass)"
 
-            let x1 = CGFloat(boxesArray[[0, i, 0] as [NSNumber]].floatValue) / inputSize
-            let y1 = CGFloat(boxesArray[[0, i, 1] as [NSNumber]].floatValue) / inputSize
-            let x2 = CGFloat(boxesArray[[0, i, 2] as [NSNumber]].floatValue) / inputSize
-            let y2 = CGFloat(boxesArray[[0, i, 3] as [NSNumber]].floatValue) / inputSize
+            // Coordinates are normalized cxcywh [0,1]
+            let cx = CGFloat(coordsArray[[i, 0] as [NSNumber]].floatValue)
+            let cy = CGFloat(coordsArray[[i, 1] as [NSNumber]].floatValue)
+            let w  = CGFloat(coordsArray[[i, 2] as [NSNumber]].floatValue)
+            let h  = CGFloat(coordsArray[[i, 3] as [NSNumber]].floatValue)
 
             let rect = CGRect(
-                x: min(x1, x2),
-                y: min(y1, y2),
-                width: abs(x2 - x1),
-                height: abs(y2 - y1)
+                x: cx - w / 2,
+                y: cy - h / 2,
+                width: w,
+                height: h
             )
 
             detections.append(Detection(
                 label: labelName,
-                labelIndex: labelIdx,
-                confidence: score,
+                labelIndex: bestClass,
+                confidence: bestScore,
                 boundingBox: rect
             ))
         }
