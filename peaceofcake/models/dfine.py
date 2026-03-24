@@ -92,6 +92,7 @@ class DFINE(BaseModel):
             sys.path.insert(0, str(dfine_root))
 
     def _load_model(self, ckpt_path):
+        import src  # noqa: F401 — triggers @register for all D-FINE modules
         from src.core import YAMLConfig
 
         cfg = YAMLConfig(self._dfine_config_path)
