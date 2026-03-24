@@ -71,14 +71,14 @@ class DFINEExporter:
 
     def _export_coreml(
         self, output=None, img_size=640, min_target="iOS17",
-        precision="FLOAT16", compute_units="ALL", **kw,
+        precision="FLOAT16", compute_units="ALL",
+        iou_threshold=0.6, conf_threshold=0.25, **kw,
     ) -> str:
-        import json
         model, postprocessor = self._get_model_and_postprocessor()
 
         class CoreMLModel(nn.Module):
-            """Output confidence [N, C] and coordinates [N, 4] (normalized xywh)
-            for Xcode detection preview compatibility."""
+            """Output raw_confidence [1, N, C] and raw_coordinates [1, N, 4]
+            (normalized cxcywh) for NMS pipeline."""
             def __init__(self, m, pp):
                 super().__init__()
                 self.model = m.deploy()
@@ -88,13 +88,13 @@ class DFINEExporter:
             def forward(self, images):
                 outputs = self.model(images)
                 logits = outputs["pred_logits"]
-                boxes = outputs["pred_boxes"]  # cxcywh normalized [0,1]
+                boxes = outputs["pred_boxes"]  # [1, N, 4] cxcywh normalized
                 if self.use_focal_loss:
                     confidence = F.sigmoid(logits)
                 else:
                     confidence = F.softmax(logits, dim=-1)[:, :, :-1]
-                # Squeeze batch dim: [1, N, C] -> [N, C], [1, N, 4] -> [N, 4]
-                return confidence.squeeze(0), boxes.squeeze(0)
+                # Keep batch dim for NMS: [1, N, C] and [1, N, 4]
+                return confidence, boxes
 
         export_model = CoreMLModel(model, postprocessor).eval()
 
@@ -118,46 +118,121 @@ class DFINEExporter:
 
         targets = {"iOS16": ct.target.iOS16, "iOS17": ct.target.iOS17, "iOS18": ct.target.iOS18}
         precisions = {"FLOAT16": ct.precision.FLOAT16, "FLOAT32": ct.precision.FLOAT32}
-        units = {"ALL": ct.ComputeUnit.ALL, "CPU_AND_GPU": ct.ComputeUnit.CPU_AND_GPU,
-                 "CPU_AND_NE": ct.ComputeUnit.CPU_AND_NE, "CPU_ONLY": ct.ComputeUnit.CPU_ONLY}
+        units_map = {"ALL": ct.ComputeUnit.ALL, "CPU_AND_GPU": ct.ComputeUnit.CPU_AND_GPU,
+                     "CPU_AND_NE": ct.ComputeUnit.CPU_AND_NE, "CPU_ONLY": ct.ComputeUnit.CPU_ONLY}
 
-        coreml_model = ct.convert(
+        # Step 1: Convert the detector model
+        detector = ct.convert(
             traced,
             inputs=[ct.ImageType(
                 name="image", shape=(1, 3, img_size, img_size),
                 scale=1.0/255.0, bias=[0, 0, 0], color_layout=ct.colorlayout.RGB,
             )],
             outputs=[
-                ct.TensorType(name="confidence"),
-                ct.TensorType(name="coordinates"),
+                ct.TensorType(name="raw_confidence"),
+                ct.TensorType(name="raw_coordinates"),
             ],
             minimum_deployment_target=targets.get(min_target, ct.target.iOS17),
             convert_to="mlprogram",
             compute_precision=precisions.get(precision.upper(), ct.precision.FLOAT16),
-            compute_units=units.get(compute_units.upper(), ct.ComputeUnit.ALL),
+            compute_units=units_map.get(compute_units.upper(), ct.ComputeUnit.ALL),
         )
 
-        # Set output descriptions for detection
+        # Step 2: Build NMS model spec
         from peaceofcake.results.detection import COCO_NAMES
-        spec = coreml_model.get_spec()
-        for out in spec.description.output:
-            if out.name == "confidence":
-                ct.utils.rename_feature(spec, "confidence", "confidence")
-                out.shortDescription = "Class confidence scores [N, C]"
-            elif out.name == "coordinates":
-                out.shortDescription = "Bounding boxes in normalized cxcywh [N, 4]"
-        coreml_model = ct.models.MLModel(spec, weights_dir=coreml_model.weights_dir)
+        num_classes = len(COCO_NAMES)
 
-        # Set Xcode detection preview metadata
-        coreml_model.user_defined_metadata["com.apple.coreml.model.preview.type"] = "objectDetector"
-        coreml_model.user_defined_metadata["com.apple.coreml.model.preview.params"] = json.dumps({
-            "labels": COCO_NAMES,
-            "confidenceThreshold": 0.25,
-        })
+        detector_spec = detector.get_spec()
+        # Get num_queries from detector output shape
+        for out in detector_spec.description.output:
+            if out.name == "raw_confidence":
+                num_queries = out.type.multiArrayType.shape[1]
+                break
+
+        nms_spec = ct.proto.Model_pb2.Model()
+        nms_spec.specificationVersion = 4
+
+        # NMS inputs
+        for name, shape in [
+            ("raw_confidence", (num_queries, num_classes)),
+            ("raw_coordinates", (num_queries, 4)),
+            ("iouThreshold", (1,)),
+            ("confidenceThreshold", (1,)),
+        ]:
+            inp = nms_spec.description.input.add()
+            inp.name = name
+            inp.type.multiArrayType.dataType = ct.proto.FeatureTypes_pb2.ArrayFeatureType.DOUBLE
+            for s in shape:
+                inp.type.multiArrayType.shape.append(s)
+
+        # NMS outputs
+        for name, shape in [
+            ("confidence", (num_queries, num_classes)),
+            ("coordinates", (num_queries, 4)),
+        ]:
+            out = nms_spec.description.output.add()
+            out.name = name
+            out.type.multiArrayType.dataType = ct.proto.FeatureTypes_pb2.ArrayFeatureType.DOUBLE
+            for s in shape:
+                out.type.multiArrayType.shape.append(s)
+
+        # Configure NMS
+        nms = nms_spec.nonMaximumSuppression
+        nms.confidenceInputFeatureName = "raw_confidence"
+        nms.coordinatesInputFeatureName = "raw_coordinates"
+        nms.confidenceOutputFeatureName = "confidence"
+        nms.coordinatesOutputFeatureName = "coordinates"
+        nms.iouThresholdInputFeatureName = "iouThreshold"
+        nms.confidenceThresholdInputFeatureName = "confidenceThreshold"
+        nms.iouThreshold = iou_threshold
+        nms.confidenceThreshold = conf_threshold
+        nms.pickTop.perClass = True
+        for label in COCO_NAMES:
+            nms.stringClassLabels.vector.append(label)
+
+        # Step 3: Build pipeline
+        # Reshape detector outputs: remove batch dim [1, N, C] -> [N, C]
+        # by updating the detector spec output shapes
+        for out in detector_spec.description.output:
+            arr = out.type.multiArrayType
+            if out.name == "raw_confidence":
+                arr.shape[:] = [num_queries, num_classes]
+            elif out.name == "raw_coordinates":
+                arr.shape[:] = [num_queries, 4]
+
+        pipeline_spec = ct.proto.Model_pb2.Model()
+        pipeline_spec.specificationVersion = 4
+        pipeline_spec.isUpdatable = False
+
+        # Pipeline inputs (image + threshold overrides)
+        img_input = pipeline_spec.description.input.add()
+        img_input.name = "image"
+        img_input.type.imageType.width = img_size
+        img_input.type.imageType.height = img_size
+        img_input.type.imageType.colorSpace = ct.proto.FeatureTypes_pb2.ImageFeatureType.RGB
+
+        for name, default in [("iouThreshold", iou_threshold), ("confidenceThreshold", conf_threshold)]:
+            inp = pipeline_spec.description.input.add()
+            inp.name = name
+            inp.type.doubleType.SetInParent()
+
+        # Pipeline outputs
+        for name, shape in [("confidence", (num_queries, num_classes)), ("coordinates", (num_queries, 4))]:
+            out = pipeline_spec.description.output.add()
+            out.name = name
+            out.type.multiArrayType.dataType = ct.proto.FeatureTypes_pb2.ArrayFeatureType.DOUBLE
+            for s in shape:
+                out.type.multiArrayType.shape.append(s)
+
+        # Add models to pipeline
+        pipeline_spec.pipeline.models.add().CopyFrom(detector_spec)
+        pipeline_spec.pipeline.models.add().CopyFrom(nms_spec)
+
+        pipeline_model = ct.models.MLModel(pipeline_spec, weights_dir=detector.weights_dir)
 
         output = output or "model.mlpackage"
-        coreml_model.save(output)
-        print(f"CoreML exported to {output}")
+        pipeline_model.save(output)
+        print(f"CoreML exported to {output} (with NMS pipeline)")
         return output
 
     def _export_tensorrt(self, output=None, img_size=640, **kw) -> str:
