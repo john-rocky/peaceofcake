@@ -9,3 +9,5 @@ build/
 *.engine
 *.pth
 .DS_Store
+xcuserdata/
+*.xcuserstate
