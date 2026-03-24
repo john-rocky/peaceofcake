@@ -2,6 +2,8 @@
 
 A simple Python wrapper for [D-FINE](https://github.com/Peterande/D-FINE) object detection models. Pretrained weights are downloaded automatically. Includes an iOS demo app with real-time camera detection.
 
+<img width="320" alt="Image" src="https://github.com/user-attachments/assets/9b18424e-96a4-4b83-b83d-dde08f9849c6" />
+
 ## Installation
 
 ```bash
