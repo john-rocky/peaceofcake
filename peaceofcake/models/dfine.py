@@ -1,4 +1,5 @@
 import sys
+import types
 from pathlib import Path
 from typing import Any, Dict
 
@@ -85,11 +86,17 @@ class DFINE(BaseModel):
               f"{' (pretrained)' if self.ckpt_path else ' (random init)'}")
 
     def _ensure_dfine_importable(self):
-        try:
-            from src.core import YAMLConfig  # noqa: F401
-        except ImportError:
-            dfine_root = get_dfine_root()
-            sys.path.insert(0, str(dfine_root))
+        if "src" in sys.modules:
+            return
+        dfine_root = get_dfine_root()
+        sys.path.insert(0, str(dfine_root))
+        # Create src package without running its __init__.py,
+        # which imports src.data and pulls in heavy dependencies
+        # (faster_coco_eval) not needed for inference.
+        src_mod = types.ModuleType("src")
+        src_mod.__path__ = [str(dfine_root / "src")]
+        src_mod.__package__ = "src"
+        sys.modules["src"] = src_mod
 
     def _load_model(self, ckpt_path):
         import src.nn  # noqa: F401 — register model/backbone/postprocessor
