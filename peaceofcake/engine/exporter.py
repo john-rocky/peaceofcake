@@ -77,7 +77,7 @@ class DFINEExporter:
         model, postprocessor = self._get_model_and_postprocessor()
 
         class CoreMLModel(nn.Module):
-            """Output raw_confidence [1, N, C] and raw_coordinates [1, N, 4]
+            """Output raw_confidence [N, C] and raw_coordinates [N, 4]
             (normalized cxcywh) for NMS pipeline."""
             def __init__(self, m, pp):
                 super().__init__()
@@ -93,8 +93,8 @@ class DFINEExporter:
                     confidence = F.sigmoid(logits)
                 else:
                     confidence = F.softmax(logits, dim=-1)[:, :, :-1]
-                # Keep batch dim for NMS: [1, N, C] and [1, N, 4]
-                return confidence, boxes
+                # Squeeze batch dim for NMS: [1, N, C] -> [N, C]
+                return confidence.squeeze(0), boxes.squeeze(0)
 
         export_model = CoreMLModel(model, postprocessor).eval()
 
@@ -143,27 +143,31 @@ class DFINEExporter:
         num_classes = len(COCO_NAMES)
 
         detector_spec = detector.get_spec()
-        # Get num_queries from detector output shape
+        # Get num_queries and dataType from detector output
         for out in detector_spec.description.output:
             if out.name == "raw_confidence":
-                num_queries = out.type.multiArrayType.shape[1]
+                num_queries = out.type.multiArrayType.shape[0]
+                det_dtype = out.type.multiArrayType.dataType
                 break
 
         nms_spec = ct.proto.Model_pb2.Model()
         nms_spec.specificationVersion = 4
 
-        # NMS inputs
+        # NMS inputs — match detector output dtype
         for name, shape in [
             ("raw_confidence", (num_queries, num_classes)),
             ("raw_coordinates", (num_queries, 4)),
-            ("iouThreshold", (1,)),
-            ("confidenceThreshold", (1,)),
         ]:
             inp = nms_spec.description.input.add()
             inp.name = name
-            inp.type.multiArrayType.dataType = ct.proto.FeatureTypes_pb2.ArrayFeatureType.DOUBLE
+            inp.type.multiArrayType.dataType = det_dtype
             for s in shape:
                 inp.type.multiArrayType.shape.append(s)
+
+        for name in ["iouThreshold", "confidenceThreshold"]:
+            inp = nms_spec.description.input.add()
+            inp.name = name
+            inp.type.doubleType.SetInParent()
 
         # NMS outputs
         for name, shape in [
@@ -172,7 +176,7 @@ class DFINEExporter:
         ]:
             out = nms_spec.description.output.add()
             out.name = name
-            out.type.multiArrayType.dataType = ct.proto.FeatureTypes_pb2.ArrayFeatureType.DOUBLE
+            out.type.multiArrayType.dataType = det_dtype
             for s in shape:
                 out.type.multiArrayType.shape.append(s)
 
@@ -191,15 +195,6 @@ class DFINEExporter:
             nms.stringClassLabels.vector.append(label)
 
         # Step 3: Build pipeline
-        # Reshape detector outputs: remove batch dim [1, N, C] -> [N, C]
-        # by updating the detector spec output shapes
-        for out in detector_spec.description.output:
-            arr = out.type.multiArrayType
-            if out.name == "raw_confidence":
-                arr.shape[:] = [num_queries, num_classes]
-            elif out.name == "raw_coordinates":
-                arr.shape[:] = [num_queries, 4]
-
         pipeline_spec = ct.proto.Model_pb2.Model()
         pipeline_spec.specificationVersion = 4
         pipeline_spec.isUpdatable = False
