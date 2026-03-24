@@ -36,39 +36,39 @@ struct PhotoDetectionView: View {
 
     var body: some View {
         NavigationStack {
-            VStack(spacing: 0) {
-                ZStack {
-                    if let image = selectedImage {
-                        Image(uiImage: image)
-                            .resizable()
-                            .aspectRatio(contentMode: .fit)
-                            .overlay {
-                                DetectionOverlayView(
-                                    detections: filteredDetections,
-                                    imageSize: image.size
-                                )
-                            }
-                    } else {
-                        VStack(spacing: 16) {
-                            Image(systemName: "photo.on.rectangle.angled")
-                                .font(.system(size: 60))
-                                .foregroundColor(.secondary)
-                            Text("Select a photo to detect objects")
-                                .foregroundColor(.secondary)
-                        }
+            ZStack(alignment: .bottom) {
+                if let image = selectedImage {
+                    Image(uiImage: image)
+                        .resizable()
+                        .aspectRatio(contentMode: .fit)
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        .background(Color(.systemGroupedBackground))
+                        .overlay {
+                            DetectionOverlayView(
+                                detections: filteredDetections,
+                                imageSize: image.size
+                            )
+                        }
+                        .ignoresSafeArea()
+                } else {
+                    VStack(spacing: 16) {
+                        Image(systemName: "photo.on.rectangle.angled")
+                            .font(.system(size: 60))
+                            .foregroundColor(.secondary)
+                        Text("Select a photo to detect objects")
+                            .foregroundColor(.secondary)
                     }
-
-                    if isProcessing {
-                        ProgressView("Detecting...")
-                            .padding()
-                            .background(.ultraThinMaterial)
-                            .cornerRadius(10)
-                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .background(Color(.systemGroupedBackground))
                 }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
 
+                if isProcessing {
+                    ProgressView("Detecting...")
+                        .padding()
+                        .background(.ultraThinMaterial)
+                        .cornerRadius(10)
+                }
+
+                // Controls overlay
                 VStack(spacing: 8) {
                     HStack {
                         Text("Confidence")
@@ -94,9 +94,10 @@ struct PhotoDetectionView: View {
                 }
                 .padding(.horizontal)
                 .padding(.vertical, 8)
-                .background(.bar)
+                .background(.ultraThinMaterial)
             }
-            .navigationTitle("D-FINE Demo")
+            .background(Color.black.ignoresSafeArea())
+            .toolbarBackground(.hidden, for: .navigationBar)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {

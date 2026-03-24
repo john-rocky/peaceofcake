@@ -18,6 +18,7 @@ targets:
       GENERATE_INFOPLIST_FILE: YES
       INFOPLIST_KEY_NSPhotoLibraryUsageDescription: "Select photos to run object detection"
       INFOPLIST_KEY_NSCameraUsageDescription: "Use camera for real-time object detection"
+      INFOPLIST_KEY_UILaunchScreen_Generation: YES
       DEVELOPMENT_TEAM: ""
       CODE_SIGN_IDENTITY: "Apple Development"
       CODE_SIGN_STYLE: Automatic

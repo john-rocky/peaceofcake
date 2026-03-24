@@ -8,8 +8,7 @@ struct CameraView: View {
 
     var body: some View {
         NavigationStack {
-        VStack(spacing: 0) {
-            ZStack {
+            ZStack(alignment: .bottom) {
                 if cameraManager.permissionDenied {
                     VStack(spacing: 16) {
                         Image(systemName: "camera.fill")
@@ -25,6 +24,7 @@ struct CameraView: View {
                     .background(Color(.systemGroupedBackground))
                 } else {
                     CameraPreviewView(session: cameraManager.captureSession)
+                        .ignoresSafeArea()
 
                     GeometryReader { geometry in
                         CameraDetectionOverlayView(
@@ -33,63 +33,63 @@ struct CameraView: View {
                             frameSize: cameraManager.frameSize
                         )
                     }
-                }
-            }
-            .clipped()
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-
-            VStack(spacing: 8) {
-                HStack {
-                    Text("Confidence")
-                        .font(.subheadline)
-                    Slider(value: $threshold, in: 0.05...0.95, step: 0.05)
-                    Text(String(format: "%.0f%%", threshold * 100))
-                        .font(.subheadline)
-                        .monospacedDigit()
-                        .frame(width: 40)
+                    .ignoresSafeArea()
                 }
 
-                HStack {
-                    Text("\(filteredDetections.count) detections")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                    Spacer()
-                    Text(String(format: "%.0f ms", cameraManager.inferenceTime))
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                }
-            }
-            .padding(.horizontal)
-            .padding(.vertical, 8)
-            .background(.bar)
-        }
-        .onAppear {
-            cameraManager.checkPermissionAndStart(detector: detector, threshold: threshold)
-        }
-        .onDisappear {
-            cameraManager.stop()
-        }
-        .onChange(of: threshold) { _, newValue in
-            cameraManager.updateThreshold(newValue)
-        }
-        .navigationTitle("D-FINE Camera")
-        .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
-            ToolbarItem(placement: .topBarLeading) {
-                if availableModels.count > 1 {
-                    Picker("Model", selection: Binding(
-                        get: { detector.currentModelName },
-                        set: { detector.switchModel($0) }
-                    )) {
-                        ForEach(availableModels, id: \.self) { name in
-                            Text(name).tag(name)
-                        }
+                // Controls overlay
+                VStack(spacing: 8) {
+                    HStack {
+                        Text("Confidence")
+                            .font(.subheadline)
+                        Slider(value: $threshold, in: 0.05...0.95, step: 0.05)
+                        Text(String(format: "%.0f%%", threshold * 100))
+                            .font(.subheadline)
+                            .monospacedDigit()
+                            .frame(width: 40)
                     }
-                    .pickerStyle(.menu)
+
+                    HStack {
+                        Text("\(filteredDetections.count) detections")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                        Spacer()
+                        Text(String(format: "%.0f ms", cameraManager.inferenceTime))
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                }
+                .padding(.horizontal)
+                .padding(.vertical, 8)
+                .background(.ultraThinMaterial)
+            }
+            .background(Color.black.ignoresSafeArea())
+            .onAppear {
+                cameraManager.checkPermissionAndStart(detector: detector, threshold: threshold)
+            }
+            .onDisappear {
+                cameraManager.stop()
+            }
+            .onChange(of: threshold) { _, newValue in
+                cameraManager.updateThreshold(newValue)
+            }
+            .toolbarBackground(.hidden, for: .navigationBar)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    if availableModels.count > 1 {
+                        Picker("Model", selection: Binding(
+                            get: { detector.currentModelName },
+                            set: { detector.switchModel($0) }
+                        )) {
+                            ForEach(availableModels, id: \.self) { name in
+                                Text(name).tag(name)
+                            }
+                        }
+                        .pickerStyle(.menu)
+                    }
                 }
             }
         }
-        } // NavigationStack
     }
 
     private var filteredDetections: [Detection] {
