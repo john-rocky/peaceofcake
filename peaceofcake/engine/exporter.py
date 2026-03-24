@@ -200,12 +200,11 @@ class DFINEExporter:
         pipeline_spec.specificationVersion = 7
         pipeline_spec.isUpdatable = False
 
-        # Pipeline inputs (image + threshold overrides)
-        img_input = pipeline_spec.description.input.add()
-        img_input.name = "image"
-        img_input.type.imageType.width = img_size
-        img_input.type.imageType.height = img_size
-        img_input.type.imageType.colorSpace = ct.proto.FeatureTypes_pb2.ImageFeatureType.RGB
+        # Pipeline inputs — copy image input from detector (preserves scale/bias)
+        for det_in in detector_spec.description.input:
+            if det_in.name == "image":
+                pipeline_spec.description.input.add().CopyFrom(det_in)
+                break
 
         for name, default in [("iouThreshold", iou_threshold), ("confidenceThreshold", conf_threshold)]:
             inp = pipeline_spec.description.input.add()
