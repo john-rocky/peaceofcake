@@ -212,11 +212,11 @@ class DFINEExporter:
             inp.name = name
             inp.type.doubleType.SetInParent()
 
-        # Pipeline outputs
+        # Pipeline outputs — match NMS output dtype
         for name, shape in [("confidence", (num_queries, num_classes)), ("coordinates", (num_queries, 4))]:
             out = pipeline_spec.description.output.add()
             out.name = name
-            out.type.multiArrayType.dataType = ct.proto.FeatureTypes_pb2.ArrayFeatureType.DOUBLE
+            out.type.multiArrayType.dataType = det_dtype
             for s in shape:
                 out.type.multiArrayType.shape.append(s)
 
