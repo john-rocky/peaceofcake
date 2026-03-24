@@ -121,7 +121,7 @@ class DFINEExporter:
         units_map = {"ALL": ct.ComputeUnit.ALL, "CPU_AND_GPU": ct.ComputeUnit.CPU_AND_GPU,
                      "CPU_AND_NE": ct.ComputeUnit.CPU_AND_NE, "CPU_ONLY": ct.ComputeUnit.CPU_ONLY}
 
-        # Step 1: Convert the detector model
+        # Step 1: Convert detector — FLOAT32 required for NMS compatibility
         detector = ct.convert(
             traced,
             inputs=[ct.ImageType(
@@ -134,34 +134,43 @@ class DFINEExporter:
             ],
             minimum_deployment_target=targets.get(min_target, ct.target.iOS17),
             convert_to="mlprogram",
-            # NMS requires FLOAT32 or DOUBLE inputs
             compute_precision=ct.precision.FLOAT32,
             compute_units=units_map.get(compute_units.upper(), ct.ComputeUnit.ALL),
         )
 
-        # Step 2: Build NMS model spec
+        # Step 2: Save detector, reload to get clean spec
+        import tempfile, os
+        tmp_dir = tempfile.mkdtemp()
+        det_path = os.path.join(tmp_dir, "detector.mlpackage")
+        detector.save(det_path)
+        detector = ct.models.MLModel(det_path)
+        detector_spec = detector.get_spec()
+        spec_ver = detector_spec.specificationVersion
+
+        # Read output shape
         from peaceofcake.results.detection import COCO_NAMES
         num_classes = len(COCO_NAMES)
-
-        detector_spec = detector.get_spec()
-        # Get num_queries and dataType from detector output
         for out in detector_spec.description.output:
             if out.name == "raw_confidence":
                 num_queries = out.type.multiArrayType.shape[0]
-                det_dtype = out.type.multiArrayType.dataType
                 break
 
-        nms_spec = ct.proto.Model_pb2.Model()
-        nms_spec.specificationVersion = 7
+        # Force detector outputs to DOUBLE for NMS compatibility
+        DOUBLE = ct.proto.FeatureTypes_pb2.ArrayFeatureType.DOUBLE
+        for out in detector_spec.description.output:
+            out.type.multiArrayType.dataType = DOUBLE
 
-        # NMS inputs — match detector output dtype
+        # Step 3: Build NMS spec
+        nms_spec = ct.proto.Model_pb2.Model()
+        nms_spec.specificationVersion = spec_ver
+
         for name, shape in [
             ("raw_confidence", (num_queries, num_classes)),
             ("raw_coordinates", (num_queries, 4)),
         ]:
             inp = nms_spec.description.input.add()
             inp.name = name
-            inp.type.multiArrayType.dataType = det_dtype
+            inp.type.multiArrayType.dataType = DOUBLE
             for s in shape:
                 inp.type.multiArrayType.shape.append(s)
 
@@ -170,18 +179,16 @@ class DFINEExporter:
             inp.name = name
             inp.type.doubleType.SetInParent()
 
-        # NMS outputs
         for name, shape in [
             ("confidence", (num_queries, num_classes)),
             ("coordinates", (num_queries, 4)),
         ]:
             out = nms_spec.description.output.add()
             out.name = name
-            out.type.multiArrayType.dataType = det_dtype
+            out.type.multiArrayType.dataType = DOUBLE
             for s in shape:
                 out.type.multiArrayType.shape.append(s)
 
-        # Configure NMS
         nms = nms_spec.nonMaximumSuppression
         nms.confidenceInputFeatureName = "raw_confidence"
         nms.coordinatesInputFeatureName = "raw_coordinates"
@@ -195,31 +202,31 @@ class DFINEExporter:
         for label in COCO_NAMES:
             nms.stringClassLabels.vector.append(label)
 
-        # Step 3: Build pipeline
+        # Step 4: Build pipeline
         pipeline_spec = ct.proto.Model_pb2.Model()
-        pipeline_spec.specificationVersion = 7
-        pipeline_spec.isUpdatable = False
+        pipeline_spec.specificationVersion = spec_ver
 
-        # Pipeline inputs — copy image input from detector (preserves scale/bias)
+        # Copy image input from detector
         for det_in in detector_spec.description.input:
             if det_in.name == "image":
                 pipeline_spec.description.input.add().CopyFrom(det_in)
                 break
 
-        for name, default in [("iouThreshold", iou_threshold), ("confidenceThreshold", conf_threshold)]:
+        for name in ["iouThreshold", "confidenceThreshold"]:
             inp = pipeline_spec.description.input.add()
             inp.name = name
             inp.type.doubleType.SetInParent()
 
-        # Pipeline outputs — match NMS output dtype
-        for name, shape in [("confidence", (num_queries, num_classes)), ("coordinates", (num_queries, 4))]:
+        for name, shape in [
+            ("confidence", (num_queries, num_classes)),
+            ("coordinates", (num_queries, 4)),
+        ]:
             out = pipeline_spec.description.output.add()
             out.name = name
-            out.type.multiArrayType.dataType = det_dtype
+            out.type.multiArrayType.dataType = DOUBLE
             for s in shape:
                 out.type.multiArrayType.shape.append(s)
 
-        # Add models to pipeline
         pipeline_spec.pipeline.models.add().CopyFrom(detector_spec)
         pipeline_spec.pipeline.models.add().CopyFrom(nms_spec)
 
@@ -227,6 +234,11 @@ class DFINEExporter:
 
         output = output or "model.mlpackage"
         pipeline_model.save(output)
+
+        # Cleanup temp
+        import shutil
+        shutil.rmtree(tmp_dir, ignore_errors=True)
+
         print(f"CoreML exported to {output} (with NMS pipeline)")
         return output
 
