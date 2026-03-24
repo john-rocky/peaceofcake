@@ -118,7 +118,13 @@ class DFINEExporter:
             _ = export_model(example)
             traced = torch.jit.trace(export_model, example)
 
-        import coremltools as ct
+        try:
+            import coremltools as ct
+        except ImportError:
+            import subprocess, sys
+            print("Installing coremltools...")
+            subprocess.check_call([sys.executable, "-m", "pip", "install", "coremltools>=7.0"])
+            import coremltools as ct
 
         targets = {"iOS16": ct.target.iOS16, "iOS17": ct.target.iOS17, "iOS18": ct.target.iOS18}
         precisions = {"FLOAT16": ct.precision.FLOAT16, "FLOAT32": ct.precision.FLOAT32}
