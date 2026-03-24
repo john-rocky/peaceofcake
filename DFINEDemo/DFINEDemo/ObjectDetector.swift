@@ -24,16 +24,15 @@ class ObjectDetector: ObservableObject {
     }
 
     static func availableModels() -> [String] {
-        let extensions = ["mlmodelc", "mlpackage"]
+        guard let bundlePath = Bundle.main.resourcePath else { return [] }
+        let fm = FileManager.default
+        guard let items = try? fm.contentsOfDirectory(atPath: bundlePath) else { return [] }
         var names: Set<String> = []
-        for ext in extensions {
-            if let urls = Bundle.main.urls(forResourcesWithExtension: ext, subdirectory: nil) {
-                for url in urls {
-                    let name = url.deletingPathExtension().lastPathComponent
-                    if name.hasPrefix("dfine") {
-                        names.insert(name)
-                    }
-                }
+        for item in items {
+            if (item.hasSuffix(".mlmodelc") || item.hasSuffix(".mlpackage")),
+               item.hasPrefix("dfine") {
+                let name = (item as NSString).deletingPathExtension
+                names.insert(name)
             }
         }
         return names.sorted()
