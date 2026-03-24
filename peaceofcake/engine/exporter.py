@@ -134,7 +134,8 @@ class DFINEExporter:
             ],
             minimum_deployment_target=targets.get(min_target, ct.target.iOS17),
             convert_to="mlprogram",
-            compute_precision=precisions.get(precision.upper(), ct.precision.FLOAT16),
+            # NMS requires FLOAT32 or DOUBLE inputs
+            compute_precision=ct.precision.FLOAT32,
             compute_units=units_map.get(compute_units.upper(), ct.ComputeUnit.ALL),
         )
 
