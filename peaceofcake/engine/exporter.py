@@ -151,7 +151,7 @@ class DFINEExporter:
                 break
 
         nms_spec = ct.proto.Model_pb2.Model()
-        nms_spec.specificationVersion = 4
+        nms_spec.specificationVersion = 7
 
         # NMS inputs — match detector output dtype
         for name, shape in [
@@ -196,7 +196,7 @@ class DFINEExporter:
 
         # Step 3: Build pipeline
         pipeline_spec = ct.proto.Model_pb2.Model()
-        pipeline_spec.specificationVersion = 4
+        pipeline_spec.specificationVersion = 7
         pipeline_spec.isUpdatable = False
 
         # Pipeline inputs (image + threshold overrides)
