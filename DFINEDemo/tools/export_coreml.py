@@ -8,7 +8,8 @@ CoreML export script for D-FINE models.
 import os
 import sys
 
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "../.."))
+_root = os.path.join(os.path.dirname(os.path.abspath(__file__)), "../..")
+sys.path.insert(0, os.path.join(_root, "third_party", "dfine"))
 
 import numpy as np
 import torch

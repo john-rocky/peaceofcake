@@ -1,23 +1,8 @@
-import os
 from pathlib import Path
 
 
 def _find_dfine_root() -> Path:
-    env_root = os.environ.get("DFINE_ROOT")
-    if env_root:
-        return Path(env_root)
-    poc_root = Path(__file__).resolve().parent.parent.parent
-    # Bundled submodule
-    bundled = poc_root / "third_party" / "D-FINE"
-    if bundled.exists():
-        return bundled
-    # Fallback: sibling directory
-    for candidate in [poc_root.parent / "D-FINE", poc_root.parent / "d-fine"]:
-        if candidate.exists():
-            return candidate
-    raise FileNotFoundError(
-        "D-FINE not found. Run 'git submodule update --init' or set DFINE_ROOT env var."
-    )
+    return Path(__file__).resolve().parent.parent.parent / "third_party" / "dfine"
 
 
 def _cfg(rel: str) -> str:

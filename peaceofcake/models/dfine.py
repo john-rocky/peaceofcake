@@ -1,5 +1,4 @@
 import sys
-import types
 from pathlib import Path
 from typing import Any, Dict
 
@@ -86,33 +85,13 @@ class DFINE(BaseModel):
               f"{' (pretrained)' if self.ckpt_path else ' (random init)'}")
 
     def _ensure_dfine_importable(self):
-        if "src.core" in sys.modules:
+        if "src" in sys.modules:
             return
         dfine_root = get_dfine_root()
-        src_path = str(dfine_root / "src")
         sys.path.insert(0, str(dfine_root))
-        # Create stub packages to skip __init__.py files that pull in
-        # heavy deps (src->src.data->faster_coco_eval, src.nn->criterion->misc->data).
-        # Only arch/backbone/postprocessor/zoo model modules are needed for inference.
-        for pkg, path in [
-            ("src", src_path),
-            ("src.nn", str(dfine_root / "src" / "nn")),
-            ("src.zoo", str(dfine_root / "src" / "zoo")),
-        ]:
-            if pkg not in sys.modules:
-                mod = types.ModuleType(pkg)
-                mod.__path__ = [path]
-                mod.__package__ = pkg
-                sys.modules[pkg] = mod
-        # Import only the safe submodules needed for inference
-        import src.core  # noqa: F401
-        import src.nn.arch  # noqa: F401
-        import src.nn.backbone  # noqa: F401
-        import src.nn.postprocessor  # noqa: F401
-        import src.zoo.dfine.dfine  # noqa: F401
-        import src.zoo.dfine.dfine_decoder  # noqa: F401
-        import src.zoo.dfine.hybrid_encoder  # noqa: F401
-        import src.zoo.dfine.postprocessor  # noqa: F401
+        import src  # noqa: F401
+        import src.nn  # noqa: F401
+        import src.zoo  # noqa: F401
 
     def _load_model(self, ckpt_path):
         from src.core import YAMLConfig

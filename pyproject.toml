@@ -21,3 +21,6 @@ export = ["onnx", "onnxsim", "coremltools>=7.0"]
 
 [tool.setuptools.packages.find]
 include = ["peaceofcake*"]
+
+[tool.setuptools.package-data]
+peaceofcake = ["../third_party/dfine/configs/**/*.yml"]
