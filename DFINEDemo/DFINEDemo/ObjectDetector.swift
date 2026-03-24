@@ -49,11 +49,7 @@ class ObjectDetector: ObservableObject {
 
         do {
             let inputFeature = try MLDictionaryFeatureProvider(
-                dictionary: [
-                    "image": MLFeatureValue(pixelBuffer: pixelBuffer),
-                    "iouThreshold": MLFeatureValue(double: 0.6),
-                    "confidenceThreshold": MLFeatureValue(double: Double(threshold)),
-                ]
+                dictionary: ["image": MLFeatureValue(pixelBuffer: pixelBuffer)]
             )
             let output = try await model.prediction(from: inputFeature)
             let inferenceTime = (CFAbsoluteTimeGetCurrent() - startTime) * 1000
@@ -77,11 +73,7 @@ class ObjectDetector: ObservableObject {
 
         do {
             let inputFeature = try MLDictionaryFeatureProvider(
-                dictionary: [
-                    "image": MLFeatureValue(pixelBuffer: resizedBuffer),
-                    "iouThreshold": MLFeatureValue(double: 0.6),
-                    "confidenceThreshold": MLFeatureValue(double: Double(threshold)),
-                ]
+                dictionary: ["image": MLFeatureValue(pixelBuffer: resizedBuffer)]
             )
             let output = try model.prediction(from: inputFeature)
             let inferenceTime = (CFAbsoluteTimeGetCurrent() - startTime) * 1000
