@@ -137,12 +137,23 @@ class DFINEExporter:
             compute_units=units.get(compute_units.upper(), ct.ComputeUnit.ALL),
         )
 
-        # Set Xcode detection preview metadata
+        # Set output descriptions for detection
         from peaceofcake.results.detection import COCO_NAMES
+        spec = coreml_model.get_spec()
+        for out in spec.description.output:
+            if out.name == "confidence":
+                ct.utils.rename_feature(spec, "confidence", "confidence")
+                out.shortDescription = "Class confidence scores [N, C]"
+            elif out.name == "coordinates":
+                out.shortDescription = "Bounding boxes in normalized cxcywh [N, 4]"
+        coreml_model = ct.models.MLModel(spec, weights_dir=coreml_model.weights_dir)
+
+        # Set Xcode detection preview metadata
         coreml_model.user_defined_metadata["com.apple.coreml.model.preview.type"] = "objectDetector"
-        coreml_model.user_defined_metadata["com.apple.coreml.model.preview.params"] = json.dumps(
-            {"labels": COCO_NAMES}
-        )
+        coreml_model.user_defined_metadata["com.apple.coreml.model.preview.params"] = json.dumps({
+            "labels": COCO_NAMES,
+            "confidenceThreshold": 0.25,
+        })
 
         output = output or "model.mlpackage"
         coreml_model.save(output)
