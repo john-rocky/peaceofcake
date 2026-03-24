@@ -62,6 +62,18 @@ class DFINE(BaseModel):
             self._dfine_config_path = get_dfine_config_path(self._model_size)
             self._load_model(model_name_or_path)
 
+        elif model_name_or_path.endswith(".pth"):
+            entry = self._resolve_filename(model_name_or_path)
+            if entry:
+                self._model_size = entry["size"]
+                self._dfine_config_path = get_dfine_config_path(entry["size"])
+                self.ckpt_path = download_pretrained(entry["url"], entry.get("filename"))
+                self._load_model(self.ckpt_path)
+            else:
+                raise ValueError(
+                    f"'{model_name_or_path}' not found locally and not a known official weight."
+                )
+
         else:
             available = list(DFINE_MODEL_REGISTRY.keys())
             raise ValueError(
@@ -96,6 +108,15 @@ class DFINE(BaseModel):
             else:
                 state = checkpoint.get("model", checkpoint)
             self.model.load_state_dict(state, strict=False)
+
+    @staticmethod
+    def _resolve_filename(name: str):
+        """Match a .pth filename to a known official model entry."""
+        basename = Path(name).name
+        for entry in DFINE_MODEL_REGISTRY.values():
+            if entry.get("filename") and entry["filename"] == basename and entry.get("url"):
+                return entry
+        return None
 
     def _detect_size(self, path: str) -> str:
         stem = Path(path).stem.lower()
