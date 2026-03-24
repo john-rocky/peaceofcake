@@ -1,0 +1,49 @@
+# Example YOLO-format dataset config
+# Works with Roboflow exports and standard YOLO datasets
+#
+# Usage:
+#   model.train(data="path/to/data.yaml", epochs=50)
+
+train: /data/my_dataset/images/train
+val: /data/my_dataset/images/val
+
+nc: 3
+names: [cat, dog, bird]
+
+# Expected directory layout (standard):
+#   my_dataset/
+#     images/
+#       train/
+#         img001.jpg
+#       val/
+#         img002.jpg
+#     labels/
+#       train/
+#         img001.txt   # each line: class_id cx cy w h (normalized 0-1)
+#       val/
+#         img002.txt
+
+# -------------------------------------------------------
+# Roboflow exports are also supported directly.
+# Just point data= to the exported data.yaml:
+#
+#   model.train(data="My-Dataset-1/data.yaml")
+#
+# Roboflow layout:
+#   My-Dataset-1/
+#     data.yaml          <-- contains relative paths like ../train/images
+#     train/
+#       images/
+#         img001.jpg
+#       labels/
+#         img001.txt
+#     valid/             <-- 'valid' is auto-normalized to 'val'
+#       images/
+#         img002.jpg
+#       labels/
+#         img002.txt
+#     test/
+#       images/
+#         img003.jpg
+#       labels/
+#         img003.txt

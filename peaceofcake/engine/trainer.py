@@ -58,14 +58,51 @@ class DFINETrainer:
         if data is None:
             return {}
         if isinstance(data, dict):
-            return data
+            return self._handle_simple_or_yolo(data)
         if isinstance(data, str) and data.endswith((".yml", ".yaml")):
-            with open(data) as f:
+            yaml_path = Path(data).resolve()
+            with open(yaml_path) as f:
                 cfg = yaml.safe_load(f)
+            cfg = self._resolve_data_paths(cfg, yaml_path.parent)
             if "train" in cfg or "train_images" in cfg:
-                return self._convert_simple_format(cfg)
+                return self._handle_simple_or_yolo(cfg)
             return cfg
         raise ValueError(f"Unsupported data argument: {data}")
+
+    @staticmethod
+    def _resolve_data_paths(cfg: Dict, base_dir: Path) -> Dict:
+        """Resolve relative paths and normalize Roboflow-style keys."""
+        cfg = dict(cfg)
+
+        # Normalize 'valid' -> 'val'
+        if "valid" in cfg and "val" not in cfg:
+            cfg["val"] = cfg.pop("valid")
+
+        # Drop Roboflow metadata
+        cfg.pop("roboflow", None)
+
+        # Resolve relative paths for split directories
+        for key in ("train", "val", "test"):
+            path = cfg.get(key)
+            if path and not Path(path).is_absolute():
+                cfg[key] = str((base_dir / path).resolve())
+
+        # Resolve annotation paths too
+        for key in ("train_ann", "val_ann", "test_ann"):
+            path = cfg.get(key)
+            if path and not Path(path).is_absolute():
+                cfg[key] = str((base_dir / path).resolve())
+
+        return cfg
+
+    def _handle_simple_or_yolo(self, cfg: Dict) -> Dict:
+        from peaceofcake.utils.converters import detect_yolo_dataset, convert_yolo_dataset
+
+        if detect_yolo_dataset(cfg):
+            output_dir = self.overrides.get("output_dir", "./runs/detect/train")
+            cache_dir = str(Path(output_dir) / ".yolo_cache")
+            cfg = convert_yolo_dataset(cfg, cache_dir=cache_dir)
+        return self._convert_simple_format(cfg)
 
     def _convert_simple_format(self, cfg: Dict) -> Dict:
         """Convert simple dataset YAML to D-FINE overrides.
