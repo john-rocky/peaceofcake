@@ -97,7 +97,7 @@ def save_samples(samples: torch.Tensor, targets: List[Dict], output_dir: str, sp
             draw.text((x1 + padding, y1 - text_height - padding), label_text,
                      fill=LABEL_TEXT_COLOR, font=font)
 
-        save_path = Path(output_dir) / f"{split}_samples" / f"{target_image_id}_{target_image_path_stem}.webp"
+        save_path = Path(output_dir) / f"{split}_samples" / f"{target_image_id}_{target_image_path_stem}.jpg"
         sample_visualization.save(save_path)
 
 def show_sample(sample):
