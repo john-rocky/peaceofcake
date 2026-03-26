@@ -61,6 +61,7 @@ class DFINE(BaseModel):
             self._model_size = self._detect_size(model_name_or_path)
             self._dfine_config_path = get_dfine_config_path(self._model_size)
             self._load_model(model_name_or_path)
+            self._load_class_names(model_name_or_path)
 
         elif model_name_or_path.endswith(".pth"):
             entry = self._resolve_filename(model_name_or_path)
@@ -119,6 +120,13 @@ class DFINE(BaseModel):
 
         if ckpt_path:
             self.model.load_state_dict(state, strict=False)
+
+    def _load_class_names(self, ckpt_path: str):
+        """Load class names from metadata.json next to checkpoint."""
+        from peaceofcake.engine.trainer import DFINETrainer
+        names = DFINETrainer.load_metadata(ckpt_path)
+        if names:
+            self.class_names = names
 
     @staticmethod
     def _detect_num_classes(state_dict: dict) -> int | None:

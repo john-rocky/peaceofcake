@@ -11,6 +11,7 @@ class BaseModel(ABC):
         self.cfg_obj = None
         self.ckpt_path = None
         self.overrides = {}
+        self.class_names = None
         self._predictor = None
         self._setup(model_name_or_path)
 

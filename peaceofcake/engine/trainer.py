@@ -1,5 +1,6 @@
+import json
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, List, Optional
 
 import yaml
 import torch
@@ -24,6 +25,7 @@ class DFINETrainer:
         _register_training_modules()
 
         data_cfg = self._parse_data(self.overrides.get("data"))
+        self._class_names = data_cfg.pop("class_names", None)
         yaml_overrides = self._build_overrides(data_cfg)
 
         cfg = YAMLConfig(self.model_wrapper._dfine_config_path, **yaml_overrides)
@@ -48,8 +50,14 @@ class DFINETrainer:
         solver = TASKS[cfg.yaml_cfg["task"]](cfg)
         solver.fit()
 
-        # Load best model back — rebuild with training config (num_classes may differ)
+        # Save metadata (class names) for later checkpoint loading
         output_dir = Path(yaml_overrides.get("output_dir", "./runs/detect/train"))
+        self._save_metadata(output_dir, self._class_names)
+
+        # Store class names on model wrapper
+        self.model_wrapper.class_names = self._class_names
+
+        # Load best model back — rebuild with training config (num_classes may differ)
         for name in ["best_stg2.pth", "best_stg1.pth", "last.pth"]:
             best = output_dir / name
             if best.exists():
@@ -147,6 +155,9 @@ class DFINETrainer:
     def _handle_simple_or_yolo(self, cfg: Dict) -> Dict:
         from peaceofcake.utils.converters import detect_yolo_dataset, convert_yolo_dataset
 
+        # Extract class names before YOLO conversion (which pops 'names')
+        class_names = self._extract_class_names(cfg)
+
         if detect_yolo_dataset(cfg):
             output_dir = self.overrides.get("output_dir", "./runs/detect/train")
             cache_dir = str(Path(output_dir) / ".yolo_cache")
@@ -167,7 +178,10 @@ class DFINETrainer:
                 f"    or  dataset/images/train/  and  dataset/labels/train/"
             )
 
-        return self._convert_simple_format(cfg)
+        result = self._convert_simple_format(cfg)
+        if class_names:
+            result["class_names"] = class_names
+        return result
 
     def _convert_simple_format(self, cfg: Dict) -> Dict:
         """Convert simple dataset YAML to D-FINE overrides."""
@@ -210,11 +224,45 @@ class DFINETrainer:
             if key in ov:
                 result[key] = ov[key]
 
-        # Merge dataset config
+        # Merge dataset config (skip non-override keys)
         for k, v in data_cfg.items():
+            if k == "class_names":
+                continue
             if k in result and isinstance(result[k], dict) and isinstance(v, dict):
                 result[k].update(v)
             else:
                 result[k] = v
 
         return result
+
+    @staticmethod
+    def _extract_class_names(cfg: Dict) -> Optional[List[str]]:
+        """Extract class names from dataset config (YOLO or COCO style)."""
+        names = cfg.get("names")
+        if names is None:
+            return None
+        if isinstance(names, dict):
+            return [names[k] for k in sorted(names.keys())]
+        if isinstance(names, list):
+            return list(names)
+        return None
+
+    @staticmethod
+    def _save_metadata(output_dir: Path, class_names: Optional[List[str]]):
+        """Save training metadata alongside checkpoints."""
+        if class_names is None:
+            return
+        output_dir.mkdir(parents=True, exist_ok=True)
+        meta = {"class_names": class_names}
+        with open(output_dir / "metadata.json", "w") as f:
+            json.dump(meta, f)
+
+    @staticmethod
+    def load_metadata(ckpt_path: str) -> Optional[List[str]]:
+        """Load class names from metadata.json next to a checkpoint file."""
+        meta_path = Path(ckpt_path).parent / "metadata.json"
+        if not meta_path.exists():
+            return None
+        with open(meta_path) as f:
+            meta = json.load(f)
+        return meta.get("class_names")

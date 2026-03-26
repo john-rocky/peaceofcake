@@ -46,12 +46,13 @@ class DFINEPredictor:
                 labels, boxes, scores = self._deploy_model(img_t, size_t)
 
             mask = scores[0] > conf
+            names = self.model_wrapper.class_names or COCO_NAMES
             results.append(DetectionResults(
                 boxes=boxes[0][mask].cpu(),
                 labels=labels[0][mask].long().cpu(),
                 scores=scores[0][mask].cpu(),
                 orig_img=img,
-                names=COCO_NAMES,
+                names=names,
             ))
         return results
 
