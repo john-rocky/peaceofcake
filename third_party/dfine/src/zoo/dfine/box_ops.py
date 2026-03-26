@@ -51,10 +51,11 @@ def generalized_box_iou(boxes1, boxes2):
     Returns a [N, M] pairwise matrix, where N = len(boxes1)
     and M = len(boxes2)
     """
-    # degenerate boxes gives inf / nan results
-    # so do an early check
-    assert (boxes1[:, 2:] >= boxes1[:, :2]).all()
-    assert (boxes2[:, 2:] >= boxes2[:, :2]).all()
+    # Clamp degenerate boxes (x2 < x1 or y2 < y1) to avoid inf/nan
+    boxes1 = boxes1.clone()
+    boxes2 = boxes2.clone()
+    boxes1[:, 2:] = torch.max(boxes1[:, 2:], boxes1[:, :2])
+    boxes2[:, 2:] = torch.max(boxes2[:, 2:], boxes2[:, :2])
     iou, union = box_iou(boxes1, boxes2)
 
     lt = torch.min(boxes1[:, None, :2], boxes2[:, :2])
