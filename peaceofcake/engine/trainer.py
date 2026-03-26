@@ -48,11 +48,19 @@ class DFINETrainer:
         solver = TASKS[cfg.yaml_cfg["task"]](cfg)
         solver.fit()
 
-        # Load best model back
+        # Load best model back — rebuild with training config (num_classes may differ)
         output_dir = Path(yaml_overrides.get("output_dir", "./runs/detect/train"))
         for name in ["best_stg2.pth", "best_stg1.pth", "last.pth"]:
             best = output_dir / name
             if best.exists():
+                train_cfg = YAMLConfig(
+                    self.model_wrapper._dfine_config_path, **yaml_overrides
+                )
+                if "HGNetv2" in train_cfg.yaml_cfg:
+                    train_cfg.yaml_cfg["HGNetv2"]["pretrained"] = False
+                self.model_wrapper.model = train_cfg.model
+                self.model_wrapper.cfg_obj = train_cfg
+
                 ckpt = torch.load(best, map_location="cpu")
                 state = ckpt.get("ema", {}).get("module", ckpt.get("model"))
                 if state:
