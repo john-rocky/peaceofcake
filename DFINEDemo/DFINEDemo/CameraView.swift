@@ -53,8 +53,13 @@ struct CameraView: View {
                             .font(.caption)
                             .foregroundColor(.secondary)
                         Spacer()
-                        Text(String(format: "%.0f ms", cameraManager.inferenceTime))
+                        Text(String(format: "%.1f ms", cameraManager.smoothedInferenceTime))
                             .font(.caption)
+                            .monospacedDigit()
+                            .foregroundColor(.secondary)
+                        Text(String(format: "%.1f fps", cameraManager.smoothedFPS))
+                            .font(.caption)
+                            .monospacedDigit()
                             .foregroundColor(.secondary)
                     }
                 }

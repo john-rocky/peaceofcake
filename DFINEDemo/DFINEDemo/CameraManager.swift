@@ -4,6 +4,8 @@ import SwiftUI
 class CameraManager: NSObject, ObservableObject {
     @Published var detections: [Detection] = []
     @Published var inferenceTime: Double = 0
+    @Published var smoothedInferenceTime: Double = 0
+    @Published var smoothedFPS: Double = 0
     @Published var isRunning = false
     @Published var permissionDenied = false
     @Published var frameSize = CGSize(width: 720, height: 1280)
@@ -16,6 +18,11 @@ class CameraManager: NSObject, ObservableObject {
     private var threshold: Float = 0.5
     private var isProcessingFrame = false
     private var frameSizeSet = false
+
+    // Smoothing state
+    private let smoothingAlpha: Double = 0.1
+    private var frameTimestamps: [CFAbsoluteTime] = []
+    private let maxTimestampCount = 30
 
     func setupCamera() {
         captureSession.sessionPreset = .hd1280x720
@@ -109,9 +116,34 @@ extension CameraManager: AVCaptureVideoDataOutputSampleBufferDelegate {
         let currentThreshold = threshold
         let result = detector.detect(pixelBuffer: pixelBuffer, threshold: currentThreshold)
 
+        let now = CFAbsoluteTimeGetCurrent()
+        frameTimestamps.append(now)
+        if frameTimestamps.count > maxTimestampCount {
+            frameTimestamps.removeFirst(frameTimestamps.count - maxTimestampCount)
+        }
+
+        var fps: Double = 0
+        if frameTimestamps.count >= 2,
+           let first = frameTimestamps.first, let last = frameTimestamps.last, last > first {
+            fps = Double(frameTimestamps.count - 1) / (last - first)
+        }
+
+        let emaInference: Double
+        let emaFPS: Double
+        let alpha = smoothingAlpha
+        if smoothedInferenceTime == 0 {
+            emaInference = result.inferenceTime
+            emaFPS = fps
+        } else {
+            emaInference = alpha * result.inferenceTime + (1 - alpha) * smoothedInferenceTime
+            emaFPS = alpha * fps + (1 - alpha) * smoothedFPS
+        }
+
         DispatchQueue.main.async { [weak self] in
             self?.detections = result.detections
             self?.inferenceTime = result.inferenceTime
+            self?.smoothedInferenceTime = emaInference
+            self?.smoothedFPS = emaFPS
             self?.isProcessingFrame = false
         }
     }

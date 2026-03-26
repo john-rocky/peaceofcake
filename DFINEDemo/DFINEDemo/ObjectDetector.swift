@@ -15,6 +15,7 @@ class ObjectDetector: ObservableObject {
     private var model: MLModel?
     private let inputSize: CGFloat = 640
     private let ciContext = CIContext()
+    private var resizeBuffer: CVPixelBuffer?
     @Published var currentModelName: String = ""
 
     init() {
@@ -115,10 +116,11 @@ class ObjectDetector: ObservableObject {
         let scaleY = size.height / ciImage.extent.height
         let scaled = ciImage.transformed(by: CGAffineTransform(scaleX: scaleX, y: scaleY))
 
-        var outputBuffer: CVPixelBuffer?
-        CVPixelBufferCreate(kCFAllocatorDefault, Int(size.width), Int(size.height),
-                            kCVPixelFormatType_32BGRA, nil, &outputBuffer)
-        guard let buffer = outputBuffer else { return nil }
+        if resizeBuffer == nil {
+            CVPixelBufferCreate(kCFAllocatorDefault, Int(size.width), Int(size.height),
+                                kCVPixelFormatType_32BGRA, nil, &resizeBuffer)
+        }
+        guard let buffer = resizeBuffer else { return nil }
         ciContext.render(scaled, to: buffer)
         return buffer
     }
@@ -130,14 +132,36 @@ class ObjectDetector: ObservableObject {
 
         let numQueries = confidenceArray.shape[0].intValue
         let numClasses = confidenceArray.shape[1].intValue
+        let confStrides = confidenceArray.strides.map { $0.intValue }
+        let coordStrides = coordsArray.strides.map { $0.intValue }
         var detections: [Detection] = []
 
+        // Build readers that handle both Float16 (Neural Engine) and Float32
+        let confRawPtr = confidenceArray.dataPointer
+        let coordRawPtr = coordsArray.dataPointer
+
+        let readConf: (Int) -> Float
+        if confidenceArray.dataType == .float16 {
+            readConf = { Float(confRawPtr.load(fromByteOffset: $0 * 2, as: Float16.self)) }
+        } else {
+            readConf = { confRawPtr.load(fromByteOffset: $0 * 4, as: Float.self) }
+        }
+
+        let readCoord: (Int) -> Float
+        if coordsArray.dataType == .float16 {
+            readCoord = { Float(coordRawPtr.load(fromByteOffset: $0 * 2, as: Float16.self)) }
+        } else {
+            readCoord = { coordRawPtr.load(fromByteOffset: $0 * 4, as: Float.self) }
+        }
+
         for i in 0..<numQueries {
+            let rowOffset = i * confStrides[0]
+
             // Find best class for this query
             var bestScore: Float = 0
             var bestClass: Int = 0
             for c in 0..<numClasses {
-                let score = confidenceArray[[i, c] as [NSNumber]].floatValue
+                let score = readConf(rowOffset + c * confStrides[1])
                 if score > bestScore {
                     bestScore = score
                     bestClass = c
@@ -148,10 +172,11 @@ class ObjectDetector: ObservableObject {
             let labelName = (bestClass >= 0 && bestClass < cocoLabels.count) ? cocoLabels[bestClass] : "class_\(bestClass)"
 
             // Coordinates are normalized cxcywh [0,1]
-            let cx = CGFloat(coordsArray[[i, 0] as [NSNumber]].floatValue)
-            let cy = CGFloat(coordsArray[[i, 1] as [NSNumber]].floatValue)
-            let w  = CGFloat(coordsArray[[i, 2] as [NSNumber]].floatValue)
-            let h  = CGFloat(coordsArray[[i, 3] as [NSNumber]].floatValue)
+            let coordRowOffset = i * coordStrides[0]
+            let cx = CGFloat(readCoord(coordRowOffset))
+            let cy = CGFloat(readCoord(coordRowOffset + coordStrides[1]))
+            let w  = CGFloat(readCoord(coordRowOffset + 2 * coordStrides[1]))
+            let h  = CGFloat(readCoord(coordRowOffset + 3 * coordStrides[1]))
 
             let rect = CGRect(
                 x: cx - w / 2,
