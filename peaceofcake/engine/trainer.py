@@ -31,6 +31,10 @@ class DFINETrainer:
         if "HGNetv2" in cfg.yaml_cfg:
             cfg.yaml_cfg["HGNetv2"]["pretrained"] = False
 
+        # Scale two-stage training schedule to custom epoch count
+        if "epochs" in self.overrides:
+            self._scale_training_schedule(cfg)
+
         # Fine-tune from pretrained if weights were loaded
         if self.model_wrapper.ckpt_path:
             cfg.tuning = self.model_wrapper.ckpt_path
@@ -57,6 +61,39 @@ class DFINETrainer:
                 break
 
         dist_utils.cleanup()
+
+    @staticmethod
+    def _scale_training_schedule(cfg):
+        """Scale stop_epoch and augmentation policy to match custom epoch count.
+
+        D-FINE uses a two-stage schedule: stage 1 with augmentation, stage 2
+        without. The transition point (stop_epoch) must be scaled when the
+        user specifies fewer/more epochs than the default config.
+        """
+        epochs = cfg.yaml_cfg.get("epochs")
+        if epochs is None:
+            return
+
+        train_dl = cfg.yaml_cfg.get("train_dataloader", {})
+        collate_cfg = train_dl.get("collate_fn", {})
+        default_stop = collate_cfg.get("stop_epoch")
+
+        if default_stop is None or default_stop <= epochs:
+            return
+
+        # Scale proportionally — stage 2 starts at ~90% of training
+        scaled_stop = max(1, int(epochs * 0.9))
+        collate_cfg["stop_epoch"] = scaled_stop
+
+        # Also scale the augmentation policy epoch
+        policy = (
+            train_dl
+            .get("dataset", {})
+            .get("transforms", {})
+            .get("policy")
+        )
+        if policy and "epoch" in policy:
+            policy["epoch"] = scaled_stop
 
     def _parse_data(self, data) -> Dict:
         if data is None:

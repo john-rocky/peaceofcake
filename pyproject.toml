@@ -14,10 +14,11 @@ dependencies = [
     "Pillow",
     "PyYAML",
     "numpy",
+    "faster-coco-eval",
+    "scipy",
 ]
 
 [project.optional-dependencies]
-train = ["faster-coco-eval", "scipy"]
 export = ["onnx", "onnxsim", "coremltools>=7.0"]
 
 [tool.setuptools.packages.find]
