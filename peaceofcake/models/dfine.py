@@ -96,7 +96,21 @@ class DFINE(BaseModel):
     def _load_model(self, ckpt_path):
         from src.core import YAMLConfig
 
-        cfg = YAMLConfig(self._dfine_config_path)
+        overrides = {}
+
+        # Detect num_classes from checkpoint to avoid shape mismatch
+        if ckpt_path:
+            checkpoint = torch.load(ckpt_path, map_location="cpu")
+            if "ema" in checkpoint:
+                state = checkpoint["ema"]["module"]
+            else:
+                state = checkpoint.get("model", checkpoint)
+
+            nc = self._detect_num_classes(state)
+            if nc is not None and nc != 80:
+                overrides["num_classes"] = nc
+
+        cfg = YAMLConfig(self._dfine_config_path, **overrides)
         if "HGNetv2" in cfg.yaml_cfg:
             cfg.yaml_cfg["HGNetv2"]["pretrained"] = False
 
@@ -104,12 +118,15 @@ class DFINE(BaseModel):
         self.cfg_obj = cfg
 
         if ckpt_path:
-            checkpoint = torch.load(ckpt_path, map_location="cpu")
-            if "ema" in checkpoint:
-                state = checkpoint["ema"]["module"]
-            else:
-                state = checkpoint.get("model", checkpoint)
             self.model.load_state_dict(state, strict=False)
+
+    @staticmethod
+    def _detect_num_classes(state_dict: dict) -> int | None:
+        """Infer num_classes from checkpoint state dict."""
+        key = "decoder.enc_score_head.weight"
+        if key in state_dict:
+            return state_dict[key].shape[0]
+        return None
 
     @staticmethod
     def _resolve_filename(name: str):
