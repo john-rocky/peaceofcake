@@ -22,7 +22,9 @@ __all__ = [
 INCLUDE_KEY = "__include__"
 
 
-def load_config(file_path, cfg=dict()):
+def load_config(file_path, cfg=None):
+    if cfg is None:
+        cfg = {}
     """load config"""
     _, ext = os.path.splitext(file_path)
     assert ext in [".yml", ".yaml"], "only support yaml files"

@@ -64,12 +64,7 @@ class DFINETrainer:
 
     @staticmethod
     def _scale_training_schedule(cfg):
-        """Scale stop_epoch and augmentation policy to match custom epoch count.
-
-        D-FINE uses a two-stage schedule: stage 1 with augmentation, stage 2
-        without. The transition point (stop_epoch) must be scaled when the
-        user specifies fewer/more epochs than the default config.
-        """
+        """Scale stop_epoch and augmentation policy to match custom epoch count."""
         epochs = cfg.yaml_cfg.get("epochs")
         if epochs is None:
             return
@@ -81,11 +76,9 @@ class DFINETrainer:
         if default_stop is None or default_stop <= epochs:
             return
 
-        # Scale proportionally — stage 2 starts at ~90% of training
         scaled_stop = max(1, int(epochs * 0.9))
         collate_cfg["stop_epoch"] = scaled_stop
 
-        # Also scale the augmentation policy epoch
         policy = (
             train_dl
             .get("dataset", {})
@@ -112,7 +105,7 @@ class DFINETrainer:
 
     @staticmethod
     def _resolve_data_paths(cfg: Dict, base_dir: Path) -> Dict:
-        """Resolve relative paths and normalize Roboflow-style keys."""
+        """Resolve relative paths and normalize Roboflow/Ultralytics-style keys."""
         cfg = dict(cfg)
 
         # Normalize 'valid' -> 'val'
@@ -121,6 +114,13 @@ class DFINETrainer:
 
         # Drop Roboflow metadata
         cfg.pop("roboflow", None)
+
+        # Ultralytics 'path' key overrides base_dir
+        if "path" in cfg:
+            path_val = Path(cfg.pop("path"))
+            if not path_val.is_absolute():
+                path_val = (base_dir / path_val).resolve()
+            base_dir = path_val
 
         # Resolve relative paths for split directories
         for key in ("train", "val", "test"):
@@ -143,19 +143,26 @@ class DFINETrainer:
             output_dir = self.overrides.get("output_dir", "./runs/detect/train")
             cache_dir = str(Path(output_dir) / ".yolo_cache")
             cfg = convert_yolo_dataset(cfg, cache_dir=cache_dir)
+
+        # Validate: must have annotation files after conversion
+        has_train_ann = "train_ann" in cfg
+        has_val_ann = "val_ann" in cfg
+        if not has_train_ann and not has_val_ann:
+            train_path = cfg.get("train", "?")
+            raise ValueError(
+                f"Cannot find annotation files for dataset.\n"
+                f"  train path: {train_path}\n"
+                f"  Expected YOLO format (labels/ directory alongside images/) "
+                f"or COCO format (train_ann/val_ann keys in YAML).\n"
+                f"  If using YOLO format, ensure directory structure is:\n"
+                f"    dataset/train/images/  and  dataset/train/labels/\n"
+                f"    or  dataset/images/train/  and  dataset/labels/train/"
+            )
+
         return self._convert_simple_format(cfg)
 
     def _convert_simple_format(self, cfg: Dict) -> Dict:
-        """Convert simple dataset YAML to D-FINE overrides.
-
-        Simple format:
-            train: /path/to/train/images
-            val: /path/to/val/images
-            train_ann: /path/to/train.json
-            val_ann: /path/to/val.json
-            nc: 10
-            names: [class1, class2, ...]
-        """
+        """Convert simple dataset YAML to D-FINE overrides."""
         result = {
             "num_classes": cfg.get("nc", cfg.get("num_classes", 80)),
             "remap_mscoco_category": False,
