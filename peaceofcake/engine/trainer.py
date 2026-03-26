@@ -1,4 +1,3 @@
-import json
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -50,31 +49,41 @@ class DFINETrainer:
         solver = TASKS[cfg.yaml_cfg["task"]](cfg)
         solver.fit()
 
-        # Save metadata (class names) for later checkpoint loading
-        output_dir = Path(yaml_overrides.get("output_dir", "./runs/detect/train"))
-        self._save_metadata(output_dir, self._class_names)
-
         # Store class names on model wrapper
+        output_dir = Path(yaml_overrides.get("output_dir", "./runs/detect/train"))
         self.model_wrapper.class_names = self._class_names
+
+        # Embed class_names into all checkpoint files
+        if self._class_names:
+            for name in ["best_stg2.pth", "best_stg1.pth", "last.pth"]:
+                ckpt_path = output_dir / name
+                if not ckpt_path.exists():
+                    continue
+                ckpt = torch.load(ckpt_path, map_location="cpu")
+                if "class_names" not in ckpt:
+                    ckpt["class_names"] = self._class_names
+                    torch.save(ckpt, ckpt_path)
 
         # Load best model back — rebuild with training config (num_classes may differ)
         for name in ["best_stg2.pth", "best_stg1.pth", "last.pth"]:
-            best = output_dir / name
-            if best.exists():
-                train_cfg = YAMLConfig(
-                    self.model_wrapper._dfine_config_path, **yaml_overrides
-                )
-                if "HGNetv2" in train_cfg.yaml_cfg:
-                    train_cfg.yaml_cfg["HGNetv2"]["pretrained"] = False
-                self.model_wrapper.model = train_cfg.model
-                self.model_wrapper.cfg_obj = train_cfg
+            ckpt_path = output_dir / name
+            if not ckpt_path.exists():
+                continue
 
-                ckpt = torch.load(best, map_location="cpu")
-                state = ckpt.get("ema", {}).get("module", ckpt.get("model"))
-                if state:
-                    self.model_wrapper.model.load_state_dict(state)
-                    self.best_model = self.model_wrapper.model
-                break
+            train_cfg = YAMLConfig(
+                self.model_wrapper._dfine_config_path, **yaml_overrides
+            )
+            if "HGNetv2" in train_cfg.yaml_cfg:
+                train_cfg.yaml_cfg["HGNetv2"]["pretrained"] = False
+            self.model_wrapper.model = train_cfg.model
+            self.model_wrapper.cfg_obj = train_cfg
+
+            ckpt = torch.load(ckpt_path, map_location="cpu")
+            state = ckpt.get("ema", {}).get("module", ckpt.get("model"))
+            if state:
+                self.model_wrapper.model.load_state_dict(state)
+                self.best_model = self.model_wrapper.model
+            break
 
         dist_utils.cleanup()
 
@@ -247,22 +256,3 @@ class DFINETrainer:
             return list(names)
         return None
 
-    @staticmethod
-    def _save_metadata(output_dir: Path, class_names: Optional[List[str]]):
-        """Save training metadata alongside checkpoints."""
-        if class_names is None:
-            return
-        output_dir.mkdir(parents=True, exist_ok=True)
-        meta = {"class_names": class_names}
-        with open(output_dir / "metadata.json", "w") as f:
-            json.dump(meta, f)
-
-    @staticmethod
-    def load_metadata(ckpt_path: str) -> Optional[List[str]]:
-        """Load class names from metadata.json next to a checkpoint file."""
-        meta_path = Path(ckpt_path).parent / "metadata.json"
-        if not meta_path.exists():
-            return None
-        with open(meta_path) as f:
-            meta = json.load(f)
-        return meta.get("class_names")
