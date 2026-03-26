@@ -18,6 +18,10 @@ class DFINETrainer:
         from src.core import YAMLConfig
         from src.solver import TASKS
         from src.misc import dist_utils
+        from src import data, optim  # noqa: F401 — register training components
+        from src.nn import criterion  # noqa: F401
+        from src.zoo.dfine import _register_training_modules
+        _register_training_modules()
 
         data_cfg = self._parse_data(self.overrides.get("data"))
         yaml_overrides = self._build_overrides(data_cfg)

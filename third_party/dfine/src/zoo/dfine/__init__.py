@@ -4,8 +4,12 @@ Copyright(c) 2023 lyuwenyu. All Rights Reserved.
 """
 
 from .dfine import DFINE
-from .dfine_criterion import DFINECriterion
 from .dfine_decoder import DFINETransformer
 from .hybrid_encoder import HybridEncoder
-from .matcher import HungarianMatcher
 from .postprocessor import DFINEPostProcessor
+
+# DFINECriterion and HungarianMatcher depend on src.misc (training-only).
+# They are registered lazily when training starts.
+def _register_training_modules():
+    from .dfine_criterion import DFINECriterion  # noqa: F401
+    from .matcher import HungarianMatcher  # noqa: F401

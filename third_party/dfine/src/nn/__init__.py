@@ -12,5 +12,7 @@ from .backbone import (
     freeze_batch_norm2d,
     get_activation,
 )
-from .criterion import *
+# criterion is registered lazily — it depends on src.misc which
+# requires training-only packages.  It gets imported when the
+# solver / trainer actually needs it.
 from .postprocessor import *
