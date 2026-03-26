@@ -29,11 +29,13 @@ def yolo_to_coco(
     output_json = Path(output_json)
     output_json.parent.mkdir(parents=True, exist_ok=True)
 
-    if nc is None:
-        nc = len(class_names) if class_names else 0
+    # nc=None means auto-detect from labels; nc=0 means infer from class_names
+    if nc is None and class_names:
+        nc = len(class_names)
+    # Keep nc=None for auto-detection if neither nc nor class_names provided
 
     if class_names is None:
-        class_names = [f"class_{i}" for i in range(nc)]
+        class_names = [f"class_{i}" for i in range(nc or 0)]
 
     categories = [
         {"id": i, "name": name} for i, name in enumerate(class_names)
@@ -78,8 +80,13 @@ def yolo_to_coco(
             abs_x = cx * w - abs_w / 2
             abs_y = cy * h - abs_h / 2
 
-            if nc == 0:
-                nc = max(nc, cls_id + 1)
+            # Track max class id for auto-detection
+            if nc is not None and cls_id >= nc:
+                print(f"Warning: skipping annotation with class_id={cls_id} >= nc={nc} in {txt_path}")
+                continue
+
+            if nc is None:
+                pass  # will infer nc after scanning all labels
 
             annotations.append({
                 "id": ann_id,
@@ -90,6 +97,10 @@ def yolo_to_coco(
                 "iscrowd": 0,
             })
             ann_id += 1
+
+    # Auto-detect nc from annotations if not provided
+    if nc is None:
+        nc = max((a["category_id"] for a in annotations), default=-1) + 1
 
     # Fill in generic class names if nc grew
     while len(categories) < nc:
