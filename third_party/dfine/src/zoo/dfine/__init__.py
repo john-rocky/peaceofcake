@@ -4,7 +4,8 @@ Copyright(c) 2023 lyuwenyu. All Rights Reserved.
 """
 
 from .dfine import DFINE
-# dfine_criterion and matcher excluded — training only, pulls in src.misc -> src.data
+from .dfine_criterion import DFINECriterion
 from .dfine_decoder import DFINETransformer
 from .hybrid_encoder import HybridEncoder
+from .matcher import HungarianMatcher
 from .postprocessor import DFINEPostProcessor

@@ -1,2 +1,6 @@
-# Inference-only subset of D-FINE.
-# Training modules (data, solver, optim, misc) are excluded.
+"""
+Copyright (c) 2024 The D-FINE Authors. All Rights Reserved.
+"""
+
+# for register purpose
+from . import data, nn, optim, zoo

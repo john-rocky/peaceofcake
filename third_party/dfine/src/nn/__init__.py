@@ -12,5 +12,5 @@ from .backbone import (
     freeze_batch_norm2d,
     get_activation,
 )
-# criterion excluded — pulls in src.misc -> src.data (faster_coco_eval)
+from .criterion import *
 from .postprocessor import *
