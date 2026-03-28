@@ -33,12 +33,14 @@ class DFINE(BaseModel):
         from peaceofcake.engine.trainer import DFINETrainer
         from peaceofcake.engine.predictor import DFINEPredictor
         from peaceofcake.engine.exporter import DFINEExporter
+        from peaceofcake.engine.validator import DFINEValidator
 
         return {
             "detect": {
                 "trainer": DFINETrainer,
                 "predictor": DFINEPredictor,
                 "exporter": DFINEExporter,
+                "validator": DFINEValidator,
             }
         }
 

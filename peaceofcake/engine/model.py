@@ -15,6 +15,10 @@ class BaseModel(ABC):
         self._predictor = None
         self._setup(model_name_or_path)
 
+    def __call__(self, source, **kwargs):
+        """Shorthand for predict(). Usage: model('image.jpg')"""
+        return self.predict(source, **kwargs)
+
     @property
     @abstractmethod
     def task_map(self) -> Dict[str, Dict[str, Any]]:
@@ -54,6 +58,22 @@ class BaseModel(ABC):
         """Export to format. Returns path to exported file."""
         exporter_cls = self.task_map[self.task]["exporter"]
         return exporter_cls(self, kwargs).export(format, **kwargs)
+
+    @property
+    def names(self) -> Optional[List[str]]:
+        """Class names list (same as class_names, for Ultralytics compatibility)."""
+        return self.class_names
+
+    @names.setter
+    def names(self, value):
+        self.class_names = value
+
+    def to(self, device):
+        """Move model to device. Usage: model.to('cuda')"""
+        if self.model is not None:
+            self.model = self.model.to(device)
+        self._predictor = None  # reset cached predictor
+        return self
 
     def info(self):
         """Print model information."""

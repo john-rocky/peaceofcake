@@ -18,6 +18,10 @@ dependencies = [
     "scipy",
 ]
 
+[project.scripts]
+poc = "peaceofcake.cli:main"
+peaceofcake = "peaceofcake.cli:main"
+
 [project.optional-dependencies]
 export = ["onnx", "onnxsim", "coremltools>=7.0"]
 

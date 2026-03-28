@@ -36,8 +36,12 @@ class DFINETrainer:
         if "epochs" in self.overrides:
             self._scale_training_schedule(cfg)
 
-        # Fine-tune from pretrained if weights were loaded
-        if self.model_wrapper.ckpt_path:
+        # Resume or fine-tune
+        resume = self.overrides.get("resume")
+        if resume:
+            resume_path = self._resolve_resume(resume, yaml_overrides.get("output_dir", "./runs/detect/train"))
+            cfg.resume = resume_path
+        elif self.model_wrapper.ckpt_path:
             cfg.tuning = self.model_wrapper.ckpt_path
 
         dist_utils.setup_distributed(
@@ -86,6 +90,27 @@ class DFINETrainer:
             break
 
         dist_utils.cleanup()
+
+    @staticmethod
+    def _resolve_resume(resume, output_dir: str) -> str:
+        """Resolve resume argument to a checkpoint path.
+
+        Args:
+            resume: True (auto-find last.pth), or a path string to a checkpoint.
+            output_dir: Training output directory to search for last.pth.
+        """
+        if isinstance(resume, (str, Path)) and Path(resume).exists():
+            return str(resume)
+        if resume is True:
+            # Search for last.pth in most recent output_dir
+            base = Path(output_dir).parent
+            candidates = sorted(base.glob("*/last.pth"), key=lambda p: p.stat().st_mtime, reverse=True)
+            if candidates:
+                return str(candidates[0])
+            raise FileNotFoundError(
+                f"Cannot find last.pth for resume. Searched in {base}/*/"
+            )
+        raise ValueError(f"Invalid resume value: {resume}. Use True or a path to a checkpoint.")
 
     @staticmethod
     def _scale_training_schedule(cfg):
@@ -208,13 +233,30 @@ class DFINETrainer:
             result.setdefault("val_dataloader", {}).setdefault("dataset", {})["ann_file"] = cfg["val_ann"]
         return result
 
+    @staticmethod
+    def _auto_increment_dir(base: str) -> str:
+        """Auto-increment directory: runs/detect/train → train2 → train3."""
+        base_path = Path(base)
+        if not base_path.exists():
+            return base
+        i = 2
+        while True:
+            candidate = Path(f"{base}{i}")
+            if not candidate.exists():
+                return str(candidate)
+            i += 1
+
     def _build_overrides(self, data_cfg: Dict) -> Dict:
         ov = self.overrides
         result = {}
 
         if "epochs" in ov:
             result["epochs"] = ov["epochs"]
-        result["output_dir"] = ov.get("output_dir", "./runs/detect/train")
+        base_dir = ov.get("output_dir", "./runs/detect/train")
+        if ov.get("resume"):
+            result["output_dir"] = base_dir  # don't increment when resuming
+        else:
+            result["output_dir"] = self._auto_increment_dir(base_dir)
 
         if "batch_size" in ov:
             bs = ov["batch_size"]
