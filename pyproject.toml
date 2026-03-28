@@ -6,8 +6,21 @@ build-backend = "setuptools.build_meta"
 name = "peaceofcake"
 version = "0.2.0"
 description = "Simple vision model training and deployment. Apache 2.0."
+readme = "README.md"
 license = "Apache-2.0"
 requires-python = ">=3.10"
+keywords = ["object-detection", "deep-learning", "dfine", "detr", "coreml"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Scientific/Engineering :: Image Recognition",
+]
 dependencies = [
     "torch>=2.2.0",
     "torchvision>=0.17.0",
@@ -18,6 +31,10 @@ dependencies = [
     "scipy",
     "rfdetr>=1.6.0",
 ]
+
+[project.urls]
+Homepage = "https://github.com/majimadaisuke/peaceofcake"
+Repository = "https://github.com/majimadaisuke/peaceofcake"
 
 [project.scripts]
 poc = "peaceofcake.cli:main"
@@ -31,4 +48,6 @@ rfdetr-train = ["rfdetr[train]>=1.6.0"]
 include = ["peaceofcake*"]
 
 [tool.setuptools.package-data]
-peaceofcake = ["../third_party/dfine/configs/**/*.yml"]
+"peaceofcake" = [
+    "third_party/dfine/configs/**/*.yml",
+]

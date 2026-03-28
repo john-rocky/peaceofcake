@@ -1,16 +1,23 @@
 # peaceofcake
 
-A simple Python wrapper for [D-FINE](https://github.com/Peterande/D-FINE) object detection models. Pretrained weights are downloaded automatically. Includes an iOS demo app with real-time camera detection.
+A simple Python library for state-of-the-art object detection. Supports [D-FINE](https://github.com/Peterande/D-FINE) and [RF-DETR](https://github.com/roboflow/rf-detr) models with a unified Ultralytics-style API. Pretrained weights are downloaded automatically. Includes an iOS demo app with real-time camera detection.
 
 <img width="320" alt="Image" src="https://github.com/user-attachments/assets/9b18424e-96a4-4b83-b83d-dde08f9849c6" />
 
 ## Installation
 
 ```bash
-pip install -e .
+pip install peaceofcake
 ```
 
-Requirements: Python >= 3.9, PyTorch >= 2.0
+Optional dependencies:
+
+```bash
+pip install peaceofcake[export]        # ONNX, CoreML export
+pip install peaceofcake[rfdetr-train]  # RF-DETR training
+```
+
+Requirements: Python >= 3.10, PyTorch >= 2.2
 
 ## Quick Start
 
@@ -18,11 +25,27 @@ Requirements: Python >= 3.9, PyTorch >= 2.0
 from peaceofcake import DFINE
 
 model = DFINE("dfine-n-coco")
-results = model.predict("image.jpg", conf=0.3)
+results = model("image.jpg", conf=0.3)  # __call__ shorthand
 results[0].save("output.jpg")
 ```
 
+## CLI
+
+```bash
+poc predict source=image.jpg conf=0.3
+poc train   model=dfine-m-coco data=dataset.yaml epochs=50 batch_size=16
+poc val     model=dfine-l-coco data=dataset.yaml
+poc export  model=dfine-l-coco format=coreml img_size=640 precision=FLOAT16
+poc info    model=dfine-l-coco
+
+# RF-DETR
+poc predict model=rfdetr-l-coco source=image.jpg conf=0.3
+poc train   model=rfdetr-m-coco data=dataset/ epochs=50
+```
+
 ## Available Models
+
+### D-FINE
 
 | Model | Dataset | Size |
 |---|---|---|
@@ -36,6 +59,15 @@ results[0].save("output.jpg")
 | `dfine-l-obj2coco` | Objects365+COCO | Large |
 | `dfine-x-obj2coco` | Objects365+COCO | XLarge |
 
+### RF-DETR
+
+| Model | Dataset | Size |
+|---|---|---|
+| `rfdetr-n-coco` | COCO | Nano |
+| `rfdetr-s-coco` | COCO | Small |
+| `rfdetr-m-coco` | COCO | Medium |
+| `rfdetr-l-coco` | COCO | Large |
+
 Weights are cached in `~/.cache/peaceofcake/weights/`.
 
 ## API
@@ -43,9 +75,9 @@ Weights are cached in `~/.cache/peaceofcake/weights/`.
 ### Inference
 
 ```python
-from peaceofcake import DFINE
+from peaceofcake import DFINE, RFDETR
 
-model = DFINE("dfine-n-coco")
+model = DFINE("dfine-n-coco")   # or RFDETR("rfdetr-l-coco")
 
 # From file path, PIL Image, numpy array, or list of paths
 results = model.predict("image.jpg", conf=0.25, device="cpu", img_size=640)
@@ -72,6 +104,31 @@ r.plot()      # returns PIL Image with drawn boxes
 r.save("out.jpg")  # save visualization
 ```
 
+### Training
+
+```python
+model = DFINE("dfine-m-coco")
+model.train(data="dataset.yaml", epochs=50, batch_size=16, img_size=640)
+```
+
+Supports both YOLO and COCO dataset formats. YOLO format is auto-converted.
+
+| Parameter | Default | Description |
+|---|---|---|
+| `data` | — | Path to dataset YAML (YOLO or COCO format) |
+| `epochs` | model default | Number of training epochs |
+| `batch_size` | model default | Batch size |
+| `img_size` | 640 | Input resolution |
+| `output_dir` | `./runs/detect/train` | Output directory (auto-incremented) |
+| `resume` | — | `True` (auto-find) or path to checkpoint |
+
+### Validation
+
+```python
+results = model.val(data="dataset.yaml")
+print(results)  # mAP50-95, mAP50, mAP75, etc.
+```
+
 ### Export
 
 ```python
@@ -81,15 +138,13 @@ model.export("coreml", img_size=640, precision="FLOAT16", min_target="iOS17")
 model.export("tensorrt")            # TensorRT (requires trtexec)
 ```
 
-#### CoreML Export Options
-
 | Parameter | Default | Description |
 |---|---|---|
 | `img_size` | 640 | Input resolution |
 | `min_target` | `"iOS17"` | `"iOS16"`, `"iOS17"`, `"iOS18"` |
 | `precision` | `"FLOAT16"` | `"FLOAT16"`, `"FLOAT32"` |
 | `compute_units` | `"ALL"` | `"ALL"`, `"CPU_AND_GPU"`, `"CPU_AND_NE"`, `"CPU_ONLY"` |
-| `output` | `"model.mlpackage"` | Output path |
+| `output` | auto | Output path |
 
 CoreML model outputs:
 - `confidence` — `[N, 80]` class scores
@@ -119,24 +174,11 @@ The `DFINEDemo/` directory contains a SwiftUI iOS app with:
 
 To use multiple models, add more `.mlpackage` files with `dfine` prefix. A model picker appears automatically in the toolbar.
 
-## Project Structure
-
-```
-peaceofcake/          # Python library
-  models/dfine.py     # Model loading and registry
-  engine/             # Predictor, exporter, trainer
-  results/            # Detection results and plotting
-  cfg/                # Model configs and defaults
-third_party/dfine/    # Bundled D-FINE inference source
-DFINEDemo/            # iOS demo app (SwiftUI)
-```
-
 ## License
 
 Apache 2.0
 
 ## Acknowledgments
 
-This project wraps [D-FINE](https://github.com/Peterande/D-FINE) by Peterande et al.
-
-> D-FINE: Redefine Regression Task of DETRs as Fine-grained Distribution Refinement.
+- [D-FINE](https://github.com/Peterande/D-FINE) by Peterande et al. — D-FINE: Redefine Regression Task of DETRs as Fine-grained Distribution Refinement.
+- [RF-DETR](https://github.com/roboflow/rf-detr) by Roboflow — RF-DETR: Real-Time, Foundational Object Detection.

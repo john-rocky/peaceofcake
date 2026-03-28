@@ -2,7 +2,7 @@ from pathlib import Path
 
 
 def _find_dfine_root() -> Path:
-    return Path(__file__).resolve().parent.parent.parent / "third_party" / "dfine"
+    return Path(__file__).resolve().parent.parent / "third_party" / "dfine"
 
 
 def _cfg(rel: str) -> str:
