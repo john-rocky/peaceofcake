@@ -1,31 +1,76 @@
 <div align="center">
 
-# peaceofcake
-
 <img width="300" src="https://github.com/user-attachments/assets/1c98acd6-8fb7-476d-919a-57ee82b0dd9b">
 
-**A simple Python library for state-of-the-art object detection.**
+**State-of-the-art object detection in 3 lines of Python. Fully Apache 2.0.**
 
-Supports [D-FINE](https://github.com/Peterande/D-FINE) and [RF-DETR](https://github.com/roboflow/rf-detr) models with a unified Ultralytics-style API.
-Pretrained weights are downloaded automatically.
+[D-FINE](https://github.com/Peterande/D-FINE) + [RF-DETR](https://github.com/roboflow/rf-detr) with a unified Ultralytics-style API.
+Train, export to CoreML/ONNX/TensorRT, and deploy to iPhone — all from one package.
 
-[![PyPI](https://img.shields.io/pypi/v/peaceofcake)](https://pypi.org/project/peaceofcake/)
+```
+pip install peaceofcake
+```
+
+[![PyPI](https://img.shields.io/pypi/v/peaceofcake?color=blue)](https://pypi.org/project/peaceofcake/)
+[![Downloads](https://img.shields.io/pypi/dm/peaceofcake?color=green)](https://pypi.org/project/peaceofcake/)
 [![Python](https://img.shields.io/pypi/pyversions/peaceofcake)](https://pypi.org/project/peaceofcake/)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue)](LICENSE)
+[![GitHub Stars](https://img.shields.io/github/stars/john-rocky/peaceofcake?style=social)](https://github.com/john-rocky/peaceofcake)
+
+<br>
+
+<table>
+<tr>
+<td align="center" width="33%">
+<b>3 Lines of Code</b><br>
+<sub>Predict, train, export, validate<br>with a single unified API</sub>
+</td>
+<td align="center" width="33%">
+<b>100% Apache 2.0</b><br>
+<sub>Models, weights, and library<br>all free for commercial use</sub>
+</td>
+<td align="center" width="33%">
+<b>iPhone Ready</b><br>
+<sub>CoreML export + SwiftUI demo app<br>for real-time on-device detection</sub>
+</td>
+</tr>
+</table>
+
+<br>
 
 <img width="200" height="435" alt="iOS Demo" src="https://github.com/user-attachments/assets/bde0438e-5c56-4528-a083-2952106e8073" />
 
 </div>
 
----
+## Quick Start
 
-## Installation
+```python
+from peaceofcake import DFINE
 
-```bash
-pip install peaceofcake
+model = DFINE("dfine-n-coco")
+results = model("image.jpg", conf=0.3)
+results[0].save("output.jpg")
 ```
 
-Optional dependencies:
+<details>
+<summary><b>CLI</b></summary>
+
+```bash
+poc predict source=image.jpg conf=0.3
+poc train   model=dfine-m-coco data=dataset.yaml epochs=50 batch_size=16
+poc val     model=dfine-l-coco data=dataset.yaml
+poc export  model=dfine-l-coco format=coreml img_size=640 precision=FLOAT32
+poc info    model=dfine-l-coco
+
+# RF-DETR
+poc predict model=rfdetr-l-coco source=image.jpg conf=0.3
+poc train   model=rfdetr-m-coco data=dataset/ epochs=50
+```
+
+</details>
+
+<details>
+<summary><b>Optional dependencies</b></summary>
 
 ```bash
 pip install peaceofcake[export]        # ONNX, CoreML export
@@ -34,34 +79,14 @@ pip install peaceofcake[rfdetr-train]  # RF-DETR training
 
 > Requirements: Python >= 3.10, PyTorch >= 2.2
 
-## Quick Start
+</details>
 
-```python
-from peaceofcake import DFINE
+## Models
 
-model = DFINE("dfine-n-coco")
-results = model("image.jpg", conf=0.3)  # __call__ shorthand
-results[0].save("output.jpg")
-```
-
-## CLI
-
-```bash
-poc predict source=image.jpg conf=0.3
-poc train   model=dfine-m-coco data=dataset.yaml epochs=50 batch_size=16
-poc val     model=dfine-l-coco data=dataset.yaml
-poc export  model=dfine-l-coco format=coreml img_size=640 precision=FLOAT16
-poc info    model=dfine-l-coco
-
-# RF-DETR
-poc predict model=rfdetr-l-coco source=image.jpg conf=0.3
-poc train   model=rfdetr-m-coco data=dataset/ epochs=50
-```
-
-## Available Models
+All benchmarks on COCO val2017, NVIDIA T4 GPU, TensorRT FP16.
 
 <details open>
-<summary><b>D-FINE</b> — COCO val2017, T4 GPU TensorRT FP16</summary>
+<summary><b>D-FINE</b></summary>
 
 | Model | AP | Params | Latency | GFLOPs | Resolution |
 |:---|:---:|:---:|:---:|:---:|:---:|
@@ -78,7 +103,7 @@ poc train   model=rfdetr-m-coco data=dataset/ epochs=50
 </details>
 
 <details open>
-<summary><b>RF-DETR</b> — COCO val2017, T4 GPU TensorRT FP16</summary>
+<summary><b>RF-DETR</b></summary>
 
 | Model | AP | Params | Latency | GFLOPs | Resolution |
 |:---|:---:|:---:|:---:|:---:|:---:|
@@ -89,11 +114,12 @@ poc train   model=rfdetr-m-coco data=dataset/ epochs=50
 
 </details>
 
-> AP = mAP@0.5:0.95. Weights are cached in `~/.cache/peaceofcake/weights/`.
+<sub>AP = mAP@0.5:0.95. Weights are downloaded automatically and cached in <code>~/.cache/peaceofcake/weights/</code>.</sub>
 
 ## API
 
-### Inference
+<details open>
+<summary><b>Inference</b></summary>
 
 ```python
 from peaceofcake import DFINE, RFDETR
@@ -111,7 +137,10 @@ results = model.predict("image.jpg", conf=0.25, device="cpu", img_size=640)
 | `device` | auto | `"cpu"` or `"cuda"` |
 | `img_size` | `640` | Input resolution |
 
-### Results
+</details>
+
+<details open>
+<summary><b>Results</b></summary>
 
 ```python
 r = results[0]
@@ -125,7 +154,10 @@ r.plot()      # returns PIL Image with drawn boxes
 r.save("out.jpg")  # save visualization
 ```
 
-### Training
+</details>
+
+<details>
+<summary><b>Training</b></summary>
 
 ```python
 model = DFINE("dfine-m-coco")
@@ -143,14 +175,20 @@ Supports both YOLO and COCO dataset formats. YOLO format is auto-converted.
 | `output_dir` | `./runs/detect/train` | Output directory (auto-incremented) |
 | `resume` | — | `True` (auto-find) or path to checkpoint |
 
-### Validation
+</details>
+
+<details>
+<summary><b>Validation</b></summary>
 
 ```python
 results = model.val(data="dataset.yaml")
 print(results)  # mAP50-95, mAP50, mAP75, etc.
 ```
 
-### Export
+</details>
+
+<details>
+<summary><b>Export</b></summary>
 
 ```python
 model.export("onnx")                # ONNX
@@ -158,9 +196,6 @@ model.export("coreml")              # CoreML (.mlpackage)
 model.export("coreml", img_size=640, precision="FLOAT32", min_target="iOS17")
 model.export("tensorrt")            # TensorRT (requires trtexec)
 ```
-
-<details>
-<summary><b>CoreML export options</b></summary>
 
 | Parameter | Default | Description |
 |:---|:---|:---|
@@ -177,14 +212,12 @@ CoreML model outputs:
 </details>
 
 ## iOS Demo App
-<img width="300" img src="https://github.com/user-attachments/assets/a9af3b06-dc8b-4384-88f3-765b85414b0f">
 
-The `DFINEDemo/` directory contains a SwiftUI iOS app with:
+<div align="center">
+<img width="300" src="https://github.com/user-attachments/assets/a9af3b06-dc8b-4384-88f3-765b85414b0f">
+</div>
 
-- Real-time camera object detection
-- Photo library detection
-- Confidence threshold slider
-- Model picker (when multiple models are bundled)
+The `DFINEDemo/` directory contains a SwiftUI iOS app with real-time camera detection, photo library detection, video detection, confidence threshold slider, and model picker.
 
 <details>
 <summary><b>Setup instructions</b></summary>
@@ -204,9 +237,19 @@ To use multiple models, add more `.mlpackage` files with `dfine` prefix. A model
 
 </details>
 
+## Why peaceofcake?
+
+| | Ultralytics (YOLO) | peaceofcake |
+|:---|:---|:---|
+| **Architecture** | YOLO (CNN-based) | D-FINE / RF-DETR (DETR-based) |
+| **License** | AGPL-3.0 (paid for commercial) | Apache 2.0 (free for all) |
+| **COCO AP** | up to 54.4 (YOLO11x) | up to 59.3 (D-FINE-X obj2coco) |
+| **Install** | `pip install ultralytics` | `pip install peaceofcake` |
+| **iOS demo** | - | Included (SwiftUI) |
+
 ## License
 
-Apache 2.0
+This project is licensed under [Apache 2.0](LICENSE) — free for personal and commercial use.
 
 ## Acknowledgments
 
