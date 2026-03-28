@@ -1,0 +1,149 @@
+import copy
+from pathlib import Path
+
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+
+
+class RFDETRExporter:
+    """Export RF-DETR model to ONNX, CoreML, or TensorRT."""
+
+    def __init__(self, model_wrapper, overrides=None):
+        self.model_wrapper = model_wrapper
+        self.overrides = overrides or {}
+
+    def export(self, format: str = "onnx", **kwargs) -> str:
+        format = format.lower().strip()
+        exporters = {
+            "onnx": self._export_onnx,
+            "coreml": self._export_coreml,
+            "tensorrt": self._export_tensorrt,
+            "trt": self._export_tensorrt,
+        }
+        if format not in exporters:
+            raise ValueError(f"Unsupported format '{format}'. Choose from: {list(exporters.keys())}")
+        return exporters[format](**{**self.overrides, **kwargs})
+
+    def _get_resolution(self, img_size=None):
+        return img_size or self.model_wrapper._model_resolution
+
+    def _export_onnx(self, output=None, img_size=None, simplify=True, opset=17, **kw) -> str:
+        resolution = self._get_resolution(img_size)
+        model = copy.deepcopy(self.model_wrapper.model)
+        model.eval()
+        model.export()
+
+        output = output or "model.onnx"
+        data = torch.rand(1, 3, resolution, resolution)
+
+        # Normalize dummy input like inference
+        mean = torch.tensor([0.485, 0.456, 0.406]).view(1, 3, 1, 1)
+        std = torch.tensor([0.229, 0.224, 0.225]).view(1, 3, 1, 1)
+        data = (data - mean) / std
+
+        torch.onnx.export(
+            model, (data,), output,
+            input_names=["images"],
+            output_names=["pred_boxes", "pred_logits"],
+            dynamic_axes={"images": {0: "N"}},
+            opset_version=opset,
+            do_constant_folding=True,
+        )
+
+        if simplify:
+            try:
+                import onnx, onnxsim
+                m = onnx.load(output)
+                m_sim, ok = onnxsim.simplify(output)
+                if ok:
+                    onnx.save(m_sim, output)
+            except ImportError:
+                pass
+
+        print(f"ONNX exported to {output}")
+        return output
+
+    def _export_coreml(
+        self, output=None, img_size=None, min_target="iOS17",
+        precision="FLOAT16", compute_units="ALL", **kw,
+    ) -> str:
+        resolution = self._get_resolution(img_size)
+        model = copy.deepcopy(self.model_wrapper.model)
+
+        class CoreMLModel(nn.Module):
+            """Output confidence [N, C] and coordinates [N, 4] (normalized cxcywh)."""
+            def __init__(self, m):
+                super().__init__()
+                self.model = m
+                self.model.eval()
+                self.model.export()
+                # ImageNet normalization embedded in model
+                self.register_buffer(
+                    "mean", torch.tensor([0.485, 0.456, 0.406]).view(1, 3, 1, 1))
+                self.register_buffer(
+                    "std", torch.tensor([0.229, 0.224, 0.225]).view(1, 3, 1, 1))
+
+            def forward(self, images):
+                # images: [1, 3, H, W] in [0, 1] from CoreML ImageType scale=1/255
+                x = (images - self.mean) / self.std
+                pred_boxes, pred_logits = self.model(x)
+                confidence = F.sigmoid(pred_logits)
+                return confidence.squeeze(0), pred_boxes.squeeze(0)
+
+        export_model = CoreMLModel(model).eval()
+
+        example = torch.rand(1, 3, resolution, resolution)
+        with torch.no_grad():
+            _ = export_model(example)
+            traced = torch.jit.trace(export_model, example)
+
+        try:
+            import coremltools as ct
+        except ImportError:
+            import subprocess, sys
+            print("Installing coremltools...")
+            subprocess.check_call([sys.executable, "-m", "pip", "install", "coremltools>=7.0"])
+            import coremltools as ct
+
+        targets = {"iOS16": ct.target.iOS16, "iOS17": ct.target.iOS17, "iOS18": ct.target.iOS18}
+        precisions = {"FLOAT16": ct.precision.FLOAT16, "FLOAT32": ct.precision.FLOAT32}
+        units_map = {
+            "ALL": ct.ComputeUnit.ALL,
+            "CPU_AND_GPU": ct.ComputeUnit.CPU_AND_GPU,
+            "CPU_AND_NE": ct.ComputeUnit.CPU_AND_NE,
+            "CPU_ONLY": ct.ComputeUnit.CPU_ONLY,
+        }
+
+        coreml_model = ct.convert(
+            traced,
+            inputs=[ct.ImageType(
+                name="image", shape=(1, 3, resolution, resolution),
+                scale=1.0 / 255.0, bias=[0, 0, 0], color_layout=ct.colorlayout.RGB,
+            )],
+            outputs=[
+                ct.TensorType(name="confidence"),
+                ct.TensorType(name="coordinates"),
+            ],
+            minimum_deployment_target=targets.get(min_target, ct.target.iOS17),
+            convert_to="mlprogram",
+            compute_precision=precisions.get(precision.upper(), ct.precision.FLOAT16),
+            compute_units=units_map.get(compute_units.upper(), ct.ComputeUnit.ALL),
+        )
+
+        output = output or "model.mlpackage"
+        coreml_model.save(output)
+        print(f"CoreML exported to {output}")
+        return output
+
+    def _export_tensorrt(self, output=None, img_size=None, **kw) -> str:
+        import subprocess
+        onnx_path = self._export_onnx(output="__temp.onnx", img_size=img_size, **kw)
+        output = output or "model.engine"
+        subprocess.run(
+            ["trtexec", f"--onnx={onnx_path}", f"--saveEngine={output}", "--fp16"],
+            check=True,
+        )
+        Path(onnx_path).unlink(missing_ok=True)
+        print(f"TensorRT exported to {output}")
+        return output

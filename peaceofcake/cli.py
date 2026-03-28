@@ -10,6 +10,11 @@ Usage:
 
     # Specify model (default: dfine-n-coco)
     poc train model=dfine-l-coco data=dataset.yaml epochs=100
+
+    # RF-DETR models
+    poc predict model=rfdetr-l-coco source=image.jpg conf=0.3
+    poc train model=rfdetr-m-coco data=dataset/ epochs=50
+    poc export model=rfdetr-l-coco format=coreml precision=FLOAT16
 """
 import sys
 
@@ -37,6 +42,15 @@ def _parse_args(args: list) -> dict:
     return result
 
 
+def _get_model_class(model_name: str):
+    """Determine model class from model name."""
+    if model_name.startswith("rfdetr"):
+        from peaceofcake import RFDETR
+        return RFDETR
+    from peaceofcake import DFINE
+    return DFINE
+
+
 def main():
     if len(sys.argv) < 2 or sys.argv[1] in ("-h", "--help", "help"):
         print(__doc__.strip())
@@ -46,19 +60,18 @@ def main():
     kwargs = _parse_args(sys.argv[2:])
 
     model_name = kwargs.pop("model", "dfine-n-coco")
-
-    from peaceofcake import DFINE
+    ModelClass = _get_model_class(model_name)
 
     if command == "info":
-        model = DFINE(model_name)
+        model = ModelClass(model_name)
         model.info()
 
     elif command == "train":
-        model = DFINE(model_name)
+        model = ModelClass(model_name)
         model.train(**kwargs)
 
     elif command == "val":
-        model = DFINE(model_name)
+        model = ModelClass(model_name)
         results = model.val(**kwargs)
         if results:
             print("\nValidation Results:")
@@ -71,7 +84,7 @@ def main():
             print("Error: source= is required. Example: poc predict source=image.jpg")
             sys.exit(1)
         output = kwargs.pop("output", None)
-        model = DFINE(model_name)
+        model = ModelClass(model_name)
         results = model.predict(source, **kwargs)
         for i, det in enumerate(results):
             print(det)
@@ -80,7 +93,7 @@ def main():
 
     elif command == "export":
         fmt = kwargs.pop("format", "onnx")
-        model = DFINE(model_name)
+        model = ModelClass(model_name)
         path = model.export(fmt, **kwargs)
         print(f"Exported to {path}")
 

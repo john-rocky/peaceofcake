@@ -46,3 +46,28 @@ def get_dfine_config_path(size: str) -> str:
 
 def get_dfine_root() -> Path:
     return _find_dfine_root()
+
+
+# ---------------------------------------------------------------------------
+# RF-DETR
+# ---------------------------------------------------------------------------
+
+RFDETR_SIZES = {
+    "n": {"resolution": 384},
+    "s": {"resolution": 512},
+    "m": {"resolution": 576},
+    "l": {"resolution": 704},
+}
+
+RFDETR_MODEL_REGISTRY = {
+    # Pretrained on COCO (Apache 2.0)
+    "rfdetr-n-coco": {"size": "n", "pretrained": True},
+    "rfdetr-s-coco": {"size": "s", "pretrained": True},
+    "rfdetr-m-coco": {"size": "m", "pretrained": True},
+    "rfdetr-l-coco": {"size": "l", "pretrained": True},
+    # Size-only (no pretrained weights)
+    "rfdetr-n": {"size": "n", "pretrained": False},
+    "rfdetr-s": {"size": "s", "pretrained": False},
+    "rfdetr-m": {"size": "m", "pretrained": False},
+    "rfdetr-l": {"size": "l", "pretrained": False},
+}
