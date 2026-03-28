@@ -1,81 +1,49 @@
 import PhotosUI
 import SwiftUI
 
-struct ContentView: View {
-    @StateObject private var detector = ObjectDetector()
-    @State private var selectedTab = 0
-    @State private var threshold: Float = 0.5
-    @State private var availableModels: [String] = ObjectDetector.availableModels()
-
-    var body: some View {
-        TabView(selection: $selectedTab) {
-            PhotoDetectionView(detector: detector, threshold: $threshold, availableModels: availableModels)
-                .tabItem {
-                    Label("Photo", systemImage: "photo")
-                }
-                .tag(0)
-
-            VideoView(detector: detector, threshold: $threshold, availableModels: availableModels)
-                .tabItem {
-                    Label("Video", systemImage: "video")
-                }
-                .tag(1)
-
-            CameraView(detector: detector, threshold: $threshold, availableModels: availableModels)
-                .tabItem {
-                    Label("Camera", systemImage: "camera")
-                }
-                .tag(2)
-        }
-    }
-}
-
-struct PhotoDetectionView: View {
+struct VideoView: View {
+    @StateObject private var processor = VideoProcessor()
     @ObservedObject var detector: ObjectDetector
     @Binding var threshold: Float
     let availableModels: [String]
     @State private var selectedItem: PhotosPickerItem?
-    @State private var selectedImage: UIImage?
-    @State private var detections: [Detection] = []
-    @State private var inferenceTime: Double = 0
-    @State private var isProcessing = false
 
     var body: some View {
         NavigationStack {
             ZStack(alignment: .bottom) {
-                if let image = selectedImage {
-                    Image(uiImage: image)
+                if let frame = processor.currentFrame {
+                    Image(uiImage: frame)
                         .resizable()
                         .aspectRatio(contentMode: .fit)
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                         .overlay {
                             DetectionOverlayView(
                                 detections: filteredDetections,
-                                imageSize: image.size
+                                imageSize: processor.videoSize.width > 0
+                                    ? processor.videoSize
+                                    : frame.size
                             )
                         }
                         .ignoresSafeArea()
                 } else {
                     VStack(spacing: 16) {
-                        Image(systemName: "photo.on.rectangle.angled")
+                        Image(systemName: "video.badge.plus")
                             .font(.system(size: 60))
                             .foregroundColor(.secondary)
-                        Text("Select a photo to detect objects")
+                        Text("Select a video to detect objects")
                             .foregroundColor(.secondary)
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .background(Color(.systemGroupedBackground))
                 }
 
-                if isProcessing {
-                    ProgressView("Detecting...")
-                        .padding()
-                        .background(.ultraThinMaterial)
-                        .cornerRadius(10)
-                }
-
                 // Controls overlay
                 VStack(spacing: 8) {
+                    if processor.isPlaying {
+                        ProgressView(value: processor.progress)
+                            .tint(.white)
+                    }
+
                     HStack {
                         Text("Confidence")
                             .font(.subheadline)
@@ -87,13 +55,18 @@ struct PhotoDetectionView: View {
                     }
 
                     HStack {
-                        if selectedImage != nil {
+                        if processor.currentFrame != nil {
                             Text("\(filteredDetections.count) detections")
                                 .font(.caption)
                                 .foregroundColor(.secondary)
                             Spacer()
-                            Text(String(format: "%.0f ms", inferenceTime))
+                            Text(String(format: "%.1f ms", processor.smoothedInferenceTime))
                                 .font(.caption)
+                                .monospacedDigit()
+                                .foregroundColor(.secondary)
+                            Text(String(format: "%.1f fps", processor.smoothedFPS))
+                                .font(.caption)
+                                .monospacedDigit()
                                 .foregroundColor(.secondary)
                         }
                     }
@@ -120,37 +93,54 @@ struct PhotoDetectionView: View {
                     }
                 }
                 ToolbarItem(placement: .topBarTrailing) {
-                    PhotosPicker(selection: $selectedItem, matching: .images) {
-                        Image(systemName: "photo.badge.plus")
+                    PhotosPicker(selection: $selectedItem, matching: .videos) {
+                        Image(systemName: "video.badge.plus")
                     }
                 }
             }
+            .onAppear {
+                processor.setup(detector: detector, threshold: threshold)
+            }
+            .onDisappear {
+                processor.stop()
+            }
+            .onChange(of: threshold) { _, newValue in
+                processor.updateThreshold(newValue)
+            }
             .onChange(of: selectedItem) { _, newItem in
                 guard let newItem else { return }
-                loadAndDetect(item: newItem)
+                loadAndProcess(item: newItem)
             }
         }
     }
 
     private var filteredDetections: [Detection] {
-        detections.filter { $0.confidence >= threshold }
+        processor.detections.filter { $0.confidence >= threshold }
     }
 
-    private func loadAndDetect(item: PhotosPickerItem) {
-        isProcessing = true
+    private func loadAndProcess(item: PhotosPickerItem) {
+        processor.stop()
         Task {
-            guard let data = try? await item.loadTransferable(type: Data.self),
-                  let image = UIImage(data: data)
-            else {
-                isProcessing = false
-                return
-            }
+            guard let movie = try? await item.loadTransferable(type: VideoTransferable.self) else { return }
+            processor.play(url: movie.url)
+        }
+    }
+}
 
-            selectedImage = image
-            let result = await detector.detect(image: image, threshold: 0.01)
-            detections = result.detections
-            inferenceTime = result.inferenceTime
-            isProcessing = false
+struct VideoTransferable: Transferable {
+    let url: URL
+
+    static var transferRepresentation: some TransferRepresentation {
+        FileRepresentation(contentType: .movie) { movie in
+            SentTransferredFile(movie.url)
+        } importing: { received in
+            let tempDir = FileManager.default.temporaryDirectory
+            let dest = tempDir.appendingPathComponent(received.file.lastPathComponent)
+            if FileManager.default.fileExists(atPath: dest.path) {
+                try FileManager.default.removeItem(at: dest)
+            }
+            try FileManager.default.copyItem(at: received.file, to: dest)
+            return Self(url: dest)
         }
     }
 }

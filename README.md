@@ -155,7 +155,7 @@ print(results)  # mAP50-95, mAP50, mAP75, etc.
 ```python
 model.export("onnx")                # ONNX
 model.export("coreml")              # CoreML (.mlpackage)
-model.export("coreml", img_size=640, precision="FLOAT16", min_target="iOS17")
+model.export("coreml", img_size=640, precision="FLOAT32", min_target="iOS17")
 model.export("tensorrt")            # TensorRT (requires trtexec)
 ```
 
@@ -166,7 +166,7 @@ model.export("tensorrt")            # TensorRT (requires trtexec)
 |:---|:---|:---|
 | `img_size` | `640` | Input resolution |
 | `min_target` | `"iOS17"` | `"iOS16"`, `"iOS17"`, `"iOS18"` |
-| `precision` | `"FLOAT16"` | `"FLOAT16"`, `"FLOAT32"` |
+| `precision` | `"FLOAT32"` | `"FLOAT32"`, `"FLOAT16"` |
 | `compute_units` | `"ALL"` | `"ALL"`, `"CPU_AND_GPU"`, `"CPU_AND_NE"`, `"CPU_ONLY"` |
 | `output` | auto | Output path |
 

@@ -66,7 +66,7 @@ class RFDETRExporter:
 
     def _export_coreml(
         self, output=None, img_size=None, min_target="iOS17",
-        precision="FLOAT16", compute_units="ALL", **kw,
+        precision="FLOAT32", compute_units="ALL", **kw,
     ) -> str:
         resolution = self._get_resolution(img_size)
         model = copy.deepcopy(self.model_wrapper.model)
@@ -95,8 +95,15 @@ class RFDETRExporter:
 
         example = torch.rand(1, 3, resolution, resolution)
         with torch.no_grad():
-            _ = export_model(example)
+            eager_conf, eager_boxes = export_model(example)
             traced = torch.jit.trace(export_model, example)
+            traced_conf, traced_boxes = traced(example)
+
+        # Verify tracing correctness
+        conf_diff = (eager_conf - traced_conf).abs().max().item()
+        box_diff = (eager_boxes - traced_boxes).abs().max().item()
+        if conf_diff > 1e-4 or box_diff > 1e-4:
+            print(f"WARNING: Tracing divergence detected (conf={conf_diff:.6f}, box={box_diff:.6f})")
 
         try:
             import coremltools as ct
@@ -127,13 +134,13 @@ class RFDETRExporter:
             ],
             minimum_deployment_target=targets.get(min_target, ct.target.iOS17),
             convert_to="mlprogram",
-            compute_precision=precisions.get(precision.upper(), ct.precision.FLOAT16),
+            compute_precision=precisions.get(precision.upper(), ct.precision.FLOAT32),
             compute_units=units_map.get(compute_units.upper(), ct.ComputeUnit.ALL),
         )
 
         output = output or "model.mlpackage"
         coreml_model.save(output)
-        print(f"CoreML exported to {output}")
+        print(f"CoreML exported to {output} (precision={precision})")
         return output
 
     def _export_tensorrt(self, output=None, img_size=None, **kw) -> str:
