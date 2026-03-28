@@ -237,15 +237,7 @@ To use multiple models, add more `.mlpackage` files with `dfine` prefix. A model
 
 </details>
 
-## Why peaceofcake?
 
-| | Ultralytics (YOLO) | peaceofcake |
-|:---|:---|:---|
-| **Architecture** | YOLO (CNN-based) | D-FINE / RF-DETR (DETR-based) |
-| **License** | AGPL-3.0 (paid for commercial) | Apache 2.0 (free for all) |
-| **COCO AP** | up to 54.4 (YOLO11x) | up to 59.3 (D-FINE-X obj2coco) |
-| **Install** | `pip install ultralytics` | `pip install peaceofcake` |
-| **iOS demo** | - | Included (SwiftUI) |
 
 ## License
 
