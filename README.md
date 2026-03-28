@@ -1,5 +1,5 @@
 # peaceofcake
-<img src="https://github.com/user-attachments/assets/1c98acd6-8fb7-476d-919a-57ee82b0dd9b">
+<img width="300" src="https://github.com/user-attachments/assets/1c98acd6-8fb7-476d-919a-57ee82b0dd9b">
 
 A simple Python library for state-of-the-art object detection. Supports [D-FINE](https://github.com/Peterande/D-FINE) and [RF-DETR](https://github.com/roboflow/rf-detr) models with a unified Ultralytics-style API. Pretrained weights are downloaded automatically. Includes an iOS demo app with real-time camera detection.
 
