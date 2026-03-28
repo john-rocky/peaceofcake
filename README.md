@@ -1,9 +1,23 @@
+<div align="center">
+
 # peaceofcake
+
 <img width="300" src="https://github.com/user-attachments/assets/1c98acd6-8fb7-476d-919a-57ee82b0dd9b">
 
-A simple Python library for state-of-the-art object detection. Supports [D-FINE](https://github.com/Peterande/D-FINE) and [RF-DETR](https://github.com/roboflow/rf-detr) models with a unified Ultralytics-style API. Pretrained weights are downloaded automatically. Includes an iOS demo app with real-time camera detection.
+**A simple Python library for state-of-the-art object detection.**
 
-<img width="200" height="435" alt="Image" src="https://github.com/user-attachments/assets/bde0438e-5c56-4528-a083-2952106e8073" />
+Supports [D-FINE](https://github.com/Peterande/D-FINE) and [RF-DETR](https://github.com/roboflow/rf-detr) models with a unified Ultralytics-style API.
+Pretrained weights are downloaded automatically.
+
+[![PyPI](https://img.shields.io/pypi/v/peaceofcake)](https://pypi.org/project/peaceofcake/)
+[![Python](https://img.shields.io/pypi/pyversions/peaceofcake)](https://pypi.org/project/peaceofcake/)
+[![License](https://img.shields.io/badge/license-Apache%202.0-blue)](LICENSE)
+
+<img width="200" height="435" alt="iOS Demo" src="https://github.com/user-attachments/assets/bde0438e-5c56-4528-a083-2952106e8073" />
+
+</div>
+
+---
 
 ## Installation
 
@@ -18,7 +32,7 @@ pip install peaceofcake[export]        # ONNX, CoreML export
 pip install peaceofcake[rfdetr-train]  # RF-DETR training
 ```
 
-Requirements: Python >= 3.10, PyTorch >= 2.2
+> Requirements: Python >= 3.10, PyTorch >= 2.2
 
 ## Quick Start
 
@@ -46,10 +60,11 @@ poc train   model=rfdetr-m-coco data=dataset/ epochs=50
 
 ## Available Models
 
-### D-FINE
+<details open>
+<summary><b>D-FINE</b></summary>
 
 | Model | Dataset | Size |
-|---|---|---|
+|:---|:---|:---|
 | `dfine-n-coco` | COCO | Nano (fastest) |
 | `dfine-s-coco` | COCO | Small |
 | `dfine-m-coco` | COCO | Medium |
@@ -60,16 +75,21 @@ poc train   model=rfdetr-m-coco data=dataset/ epochs=50
 | `dfine-l-obj2coco` | Objects365+COCO | Large |
 | `dfine-x-obj2coco` | Objects365+COCO | XLarge |
 
-### RF-DETR
+</details>
+
+<details open>
+<summary><b>RF-DETR</b></summary>
 
 | Model | Dataset | Size |
-|---|---|---|
+|:---|:---|:---|
 | `rfdetr-n-coco` | COCO | Nano |
 | `rfdetr-s-coco` | COCO | Small |
 | `rfdetr-m-coco` | COCO | Medium |
 | `rfdetr-l-coco` | COCO | Large |
 
-Weights are cached in `~/.cache/peaceofcake/weights/`.
+</details>
+
+> Weights are cached in `~/.cache/peaceofcake/weights/`.
 
 ## API
 
@@ -85,11 +105,11 @@ results = model.predict("image.jpg", conf=0.25, device="cpu", img_size=640)
 ```
 
 | Parameter | Default | Description |
-|---|---|---|
+|:---|:---|:---|
 | `source` | — | File path, list of paths, PIL Image, or numpy array |
-| `conf` | 0.25 | Confidence threshold |
+| `conf` | `0.25` | Confidence threshold |
 | `device` | auto | `"cpu"` or `"cuda"` |
-| `img_size` | 640 | Input resolution |
+| `img_size` | `640` | Input resolution |
 
 ### Results
 
@@ -115,11 +135,11 @@ model.train(data="dataset.yaml", epochs=50, batch_size=16, img_size=640)
 Supports both YOLO and COCO dataset formats. YOLO format is auto-converted.
 
 | Parameter | Default | Description |
-|---|---|---|
+|:---|:---|:---|
 | `data` | — | Path to dataset YAML (YOLO or COCO format) |
 | `epochs` | model default | Number of training epochs |
 | `batch_size` | model default | Batch size |
-| `img_size` | 640 | Input resolution |
+| `img_size` | `640` | Input resolution |
 | `output_dir` | `./runs/detect/train` | Output directory (auto-incremented) |
 | `resume` | — | `True` (auto-find) or path to checkpoint |
 
@@ -139,9 +159,12 @@ model.export("coreml", img_size=640, precision="FLOAT16", min_target="iOS17")
 model.export("tensorrt")            # TensorRT (requires trtexec)
 ```
 
+<details>
+<summary><b>CoreML export options</b></summary>
+
 | Parameter | Default | Description |
-|---|---|---|
-| `img_size` | 640 | Input resolution |
+|:---|:---|:---|
+| `img_size` | `640` | Input resolution |
 | `min_target` | `"iOS17"` | `"iOS16"`, `"iOS17"`, `"iOS18"` |
 | `precision` | `"FLOAT16"` | `"FLOAT16"`, `"FLOAT32"` |
 | `compute_units` | `"ALL"` | `"ALL"`, `"CPU_AND_GPU"`, `"CPU_AND_NE"`, `"CPU_ONLY"` |
@@ -150,6 +173,8 @@ model.export("tensorrt")            # TensorRT (requires trtexec)
 CoreML model outputs:
 - `confidence` — `[N, 80]` class scores
 - `coordinates` — `[N, 4]` bounding boxes (normalized cxcywh)
+
+</details>
 
 ## iOS Demo App
 
@@ -160,7 +185,8 @@ The `DFINEDemo/` directory contains a SwiftUI iOS app with:
 - Confidence threshold slider
 - Model picker (when multiple models are bundled)
 
-### Setup
+<details>
+<summary><b>Setup instructions</b></summary>
 
 1. Export a CoreML model:
    ```python
@@ -174,6 +200,8 @@ The `DFINEDemo/` directory contains a SwiftUI iOS app with:
 3. Build and run on device (iOS 17+)
 
 To use multiple models, add more `.mlpackage` files with `dfine` prefix. A model picker appears automatically in the toolbar.
+
+</details>
 
 ## License
 
