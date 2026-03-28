@@ -178,6 +178,7 @@ CoreML model outputs:
 
 ## iOS Demo App
 <img width="300" https://github.com/user-attachments/assets/a9af3b06-dc8b-4384-88f3-765b85414b0f>
+
 The `DFINEDemo/` directory contains a SwiftUI iOS app with:
 
 - Real-time camera object detection
