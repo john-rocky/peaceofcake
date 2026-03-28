@@ -61,35 +61,35 @@ poc train   model=rfdetr-m-coco data=dataset/ epochs=50
 ## Available Models
 
 <details open>
-<summary><b>D-FINE</b></summary>
+<summary><b>D-FINE</b> — COCO val2017, T4 GPU TensorRT FP16</summary>
 
-| Model | Dataset | Size |
-|:---|:---|:---|
-| `dfine-n-coco` | COCO | Nano (fastest) |
-| `dfine-s-coco` | COCO | Small |
-| `dfine-m-coco` | COCO | Medium |
-| `dfine-l-coco` | COCO | Large |
-| `dfine-x-coco` | COCO | XLarge (best accuracy) |
-| `dfine-s-obj2coco` | Objects365+COCO | Small |
-| `dfine-m-obj2coco` | Objects365+COCO | Medium |
-| `dfine-l-obj2coco` | Objects365+COCO | Large |
-| `dfine-x-obj2coco` | Objects365+COCO | XLarge |
+| Model | AP | Params | Latency | GFLOPs | Resolution |
+|:---|:---:|:---:|:---:|:---:|:---:|
+| `dfine-n-coco` | 42.8 | 4M | 2.1ms | 7 | 640 |
+| `dfine-s-coco` | 48.5 | 10M | 3.5ms | 25 | 640 |
+| `dfine-m-coco` | 52.3 | 19M | 5.6ms | 57 | 640 |
+| `dfine-l-coco` | 54.0 | 31M | 8.1ms | 91 | 640 |
+| `dfine-x-coco` | 55.8 | 62M | 12.9ms | 202 | 640 |
+| `dfine-s-obj2coco` | 50.7 | 10M | 3.5ms | 25 | 640 |
+| `dfine-m-obj2coco` | 55.1 | 19M | 5.6ms | 57 | 640 |
+| `dfine-l-obj2coco` | 57.1 | 31M | 8.1ms | 91 | 640 |
+| `dfine-x-obj2coco` | 59.3 | 62M | 12.9ms | 202 | 640 |
 
 </details>
 
 <details open>
-<summary><b>RF-DETR</b></summary>
+<summary><b>RF-DETR</b> — COCO val2017, T4 GPU TensorRT FP16</summary>
 
-| Model | Dataset | Size |
-|:---|:---|:---|
-| `rfdetr-n-coco` | COCO | Nano |
-| `rfdetr-s-coco` | COCO | Small |
-| `rfdetr-m-coco` | COCO | Medium |
-| `rfdetr-l-coco` | COCO | Large |
+| Model | AP | Params | Latency | GFLOPs | Resolution |
+|:---|:---:|:---:|:---:|:---:|:---:|
+| `rfdetr-n-coco` | 48.0 | 31M | 2.3ms | 32 | 384 |
+| `rfdetr-s-coco` | 52.9 | 32M | 3.5ms | 60 | 512 |
+| `rfdetr-m-coco` | 54.7 | 34M | 4.4ms | 79 | 576 |
+| `rfdetr-l-coco` | 56.5 | 34M | 6.8ms | 126 | 704 |
 
 </details>
 
-> Weights are cached in `~/.cache/peaceofcake/weights/`.
+> AP = mAP@0.5:0.95. Weights are cached in `~/.cache/peaceofcake/weights/`.
 
 ## API
 
