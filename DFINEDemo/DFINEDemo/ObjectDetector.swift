@@ -145,10 +145,9 @@ class ObjectDetector: ObservableObject {
         return buffer
     }
 
-    /// RF-DETR outputs 91 classes (1-based COCO IDs with index 0 = background).
-    /// D-FINE outputs 80 classes (0-based COCO). Detect which mapping to use
-    /// by checking numClasses from the model output.
-    private var isOneBasedClasses: Bool {
+    /// RF-DETR outputs 91 classes where index = COCO category ID (0 = background, 1-90 with gaps).
+    /// D-FINE outputs 80 classes with contiguous 0-based indices.
+    private var usesCocoCategoryIds: Bool {
         currentModelName.hasPrefix("rfdetr")
     }
 
@@ -161,7 +160,7 @@ class ObjectDetector: ObservableObject {
         let numClasses = confidenceArray.shape[1].intValue
         let confStrides = confidenceArray.strides.map { $0.intValue }
         let coordStrides = coordsArray.strides.map { $0.intValue }
-        let classOffset = isOneBasedClasses ? 1 : 0  // skip background class for RF-DETR
+        let classStart = usesCocoCategoryIds ? 1 : 0  // skip background for RF-DETR
         var detections: [Detection] = []
 
         // Build readers that handle both Float16 (Neural Engine) and Float32
@@ -185,10 +184,10 @@ class ObjectDetector: ObservableObject {
         for i in 0..<numQueries {
             let rowOffset = i * confStrides[0]
 
-            // Find best class for this query (skip background for 1-based models)
+            // Find best class for this query
             var bestScore: Float = 0
             var bestClass: Int = 0
-            for c in classOffset..<numClasses {
+            for c in classStart..<numClasses {
                 let score = readConf(rowOffset + c * confStrides[1])
                 if score > bestScore {
                     bestScore = score
@@ -197,9 +196,18 @@ class ObjectDetector: ObservableObject {
             }
             guard bestScore >= threshold else { continue }
 
-            // Map class index to COCO label (subtract offset for 1-based models)
-            let labelIndex = bestClass - classOffset
-            let labelName = (labelIndex >= 0 && labelIndex < cocoLabels.count) ? cocoLabels[labelIndex] : "class_\(bestClass)"
+            // Map class index to label name
+            let labelName: String
+            let labelIndex: Int
+            if usesCocoCategoryIds {
+                // RF-DETR: bestClass is a COCO category ID (1-90 with gaps)
+                labelName = cocoCategoryIdToName[bestClass] ?? "class_\(bestClass)"
+                labelIndex = bestClass
+            } else {
+                // D-FINE: bestClass is a contiguous 0-based index
+                labelName = (bestClass < cocoLabels.count) ? cocoLabels[bestClass] : "class_\(bestClass)"
+                labelIndex = bestClass
+            }
 
             // Coordinates are normalized cxcywh [0,1]
             let coordRowOffset = i * coordStrides[0]
