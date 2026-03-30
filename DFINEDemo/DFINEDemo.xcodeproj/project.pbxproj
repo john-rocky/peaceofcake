@@ -12,13 +12,13 @@
 		2A963B00073882CB5E687E2E /* CameraView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 68A2CE9217A39B8B0C821948 /* CameraView.swift */; };
 		2B98447111BDCED8D7D28383 /* DetectionOverlayView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B75E0574344E49F5B363CD4C /* DetectionOverlayView.swift */; };
 		587EFB5261BCDB11C0ABBE17 /* ObjectDetector.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0DD4C9DF62F6ECFFC0EEA347 /* ObjectDetector.swift */; };
-		A1B2C3D4E5F60718A9B0C1D2 /* VideoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60718A9B0C1D3 /* VideoView.swift */; };
-		A1B2C3D4E5F60718A9B0C1D4 /* VideoProcessor.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60718A9B0C1D5 /* VideoProcessor.swift */; };
 		6B9BBC2A64B1FF2C615B7DD1 /* CameraPreviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3AD579F1E2BC99C24FEBCA6 /* CameraPreviewView.swift */; };
-		73E096072F728A40003D0EBD /* dfine_n_coco.mlpackage in Sources */ = {isa = PBXBuildFile; fileRef = 73E096062F728A40003D0EBD /* dfine_n_coco.mlpackage */; };
 		7449D30EF2710263B8074286 /* DFINEDemoApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = E2DC5CDCACF58A6E297DAF09 /* DFINEDemoApp.swift */; };
 		878D305FEADA5A31F871C1F9 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 59C57095C9BDD8BA5005D840 /* Assets.xcassets */; };
+		A1B2C3D4E5F60718A9B0C1D2 /* VideoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60718A9B0C1D3 /* VideoView.swift */; };
+		A1B2C3D4E5F60718A9B0C1D4 /* VideoProcessor.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60718A9B0C1D5 /* VideoProcessor.swift */; };
 		A98F7BC47A2D887671144F33 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F996E2ADCCE50C01DBE559EC /* ContentView.swift */; };
+		RFDETR001000000000000001 /* rfdetr_n_coco.mlpackage in Sources */ = {isa = PBXBuildFile; fileRef = RFDETR001000000000000002 /* rfdetr_n_coco.mlpackage */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -27,14 +27,14 @@
 		5374BE4BB728A144EAAE9EBE /* DFINEDemo.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = DFINEDemo.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		59C57095C9BDD8BA5005D840 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		68A2CE9217A39B8B0C821948 /* CameraView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraView.swift; sourceTree = "<group>"; };
-		73E096062F728A40003D0EBD /* dfine_n_coco.mlpackage */ = {isa = PBXFileReference; lastKnownFileType = folder.mlpackage; path = dfine_n_coco.mlpackage; sourceTree = "<group>"; };
+		A1B2C3D4E5F60718A9B0C1D3 /* VideoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VideoView.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F60718A9B0C1D5 /* VideoProcessor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VideoProcessor.swift; sourceTree = "<group>"; };
 		A3AD579F1E2BC99C24FEBCA6 /* CameraPreviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraPreviewView.swift; sourceTree = "<group>"; };
 		B75E0574344E49F5B363CD4C /* DetectionOverlayView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DetectionOverlayView.swift; sourceTree = "<group>"; };
 		E2DC5CDCACF58A6E297DAF09 /* DFINEDemoApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DFINEDemoApp.swift; sourceTree = "<group>"; };
 		E726A3233C1717EFA8C6170C /* CameraManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraManager.swift; sourceTree = "<group>"; };
 		F996E2ADCCE50C01DBE559EC /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
-		A1B2C3D4E5F60718A9B0C1D3 /* VideoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VideoView.swift; sourceTree = "<group>"; };
-		A1B2C3D4E5F60718A9B0C1D5 /* VideoProcessor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VideoProcessor.swift; sourceTree = "<group>"; };
+		RFDETR001000000000000002 /* rfdetr_n_coco.mlpackage */ = {isa = PBXFileReference; lastKnownFileType = folder.mlpackage; name = rfdetr_n_coco.mlpackage; path = rfdetr_n_coco.mlpackage; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */
@@ -42,6 +42,7 @@
 			isa = PBXGroup;
 			children = (
 				68874E2F62D618ADCF27ADF1 /* DFINEDemo */,
+				RFDETR001000000000000002 /* rfdetr_n_coco.mlpackage */,
 				B39F481C02027B0579394D5D /* Products */,
 			);
 			sourceTree = "<group>";
@@ -49,7 +50,6 @@
 		68874E2F62D618ADCF27ADF1 /* DFINEDemo */ = {
 			isa = PBXGroup;
 			children = (
-				73E096062F728A40003D0EBD /* dfine_n_coco.mlpackage */,
 				59C57095C9BDD8BA5005D840 /* Assets.xcassets */,
 				E726A3233C1717EFA8C6170C /* CameraManager.swift */,
 				A3AD579F1E2BC99C24FEBCA6 /* CameraPreviewView.swift */,
@@ -142,7 +142,6 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				73E096072F728A40003D0EBD /* dfine_n_coco.mlpackage in Sources */,
 				1E44BA2CE92E2096541EAB69 /* COCOLabels.swift in Sources */,
 				2505B6367462EC407A6FE769 /* CameraManager.swift in Sources */,
 				6B9BBC2A64B1FF2C615B7DD1 /* CameraPreviewView.swift in Sources */,
@@ -151,6 +150,7 @@
 				7449D30EF2710263B8074286 /* DFINEDemoApp.swift in Sources */,
 				2B98447111BDCED8D7D28383 /* DetectionOverlayView.swift in Sources */,
 				587EFB5261BCDB11C0ABBE17 /* ObjectDetector.swift in Sources */,
+				RFDETR001000000000000001 /* rfdetr_n_coco.mlpackage in Sources */,
 				A1B2C3D4E5F60718A9B0C1D2 /* VideoView.swift in Sources */,
 				A1B2C3D4E5F60718A9B0C1D4 /* VideoProcessor.swift in Sources */,
 			);

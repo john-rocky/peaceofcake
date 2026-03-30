@@ -73,6 +73,9 @@ class DFINEExporter:
         self, output=None, img_size=640, min_target="iOS17",
         precision="FLOAT32", compute_units="ALL", **kw,
     ) -> str:
+        from peaceofcake.engine.coreml_patches import apply_coreml_patches
+        apply_coreml_patches()
+
         model, postprocessor = self._get_model_and_postprocessor()
 
         class CoreMLModel(nn.Module):

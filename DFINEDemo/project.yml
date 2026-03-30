@@ -13,6 +13,8 @@ targets:
       - DFINEDemo
       - path: dfine_n_coco.mlpackage
         buildPhase: sources
+      - path: rfdetr_n_coco.mlpackage
+        buildPhase: sources
     settings:
       PRODUCT_BUNDLE_IDENTIFIER: com.dfine.demo
       GENERATE_INFOPLIST_FILE: YES

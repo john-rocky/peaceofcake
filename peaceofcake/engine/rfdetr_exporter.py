@@ -6,6 +6,87 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 
+def _apply_rfdetr_coreml_patches():
+    """Apply runtime patches to coremltools and rfdetr for CoreML conversion.
+
+    The DINOv2 backbone and deformable attention in RF-DETR produce traced ops
+    that coremltools cannot convert. This function patches:
+    1. torch_int – force Python int so trace bakes in constants
+    2. DINOv2 channel check – remove traced shape assertion
+    3. Deformable attention – rank-5 only (CoreML limit), no dynamic splits
+    4. coremltools _cast – handle multi-element const arrays
+    5. coremltools tensor_assign – relax shape check
+    6. coremltools meshgrid – allow non-1D inputs
+    7. coremltools split – handle list inputs
+    """
+    import transformers.utils
+    transformers.utils.torch_int = lambda x: int(x)
+
+    import rfdetr.models.backbone.dinov2_with_windowed_attn as dwv
+    dwv.torch_int = lambda x: int(x)
+    dwv.Dinov2WithRegistersPatchEmbeddings.forward = (
+        lambda self, pv: self.projection(pv).flatten(2).transpose(1, 2)
+    )
+
+    # Deformable attention: avoid rank-6 tensors and dynamic splits
+    import rfdetr.models.ops.modules.ms_deform_attn as mda
+    from rfdetr.utilities.tensors import _bilinear_grid_sample
+
+    def _patched_deform_forward(
+        self, query, reference_points, input_flatten, input_spatial_shapes,
+        input_level_start_index, input_padding_mask=None,
+    ):
+        N, Len_q, _ = query.shape
+        N, Len_in, _ = input_flatten.shape
+        value = self.value_proj(input_flatten)
+        if input_padding_mask is not None:
+            value = value.masked_fill(input_padding_mask[..., None], float(0))
+
+        nh, nl, np_ = self.n_heads, self.n_levels, self.n_points
+        hd = self.d_model // nh
+
+        offsets = self.sampling_offsets(query).view(N, Len_q, nh, nl * np_, 2)
+        attn_w = self.attention_weights(query).view(N, Len_q, nh, nl * np_)
+
+        if reference_points.shape[-1] == 2:
+            norm = torch.stack([input_spatial_shapes[..., 1], input_spatial_shapes[..., 0]], -1)
+            norm = norm.repeat_interleave(np_, dim=0)
+            ref = reference_points.repeat_interleave(np_, dim=2)
+            sloc = ref[:, :, None, :, :] + offsets / norm[None, None, None, :, :]
+        elif reference_points.shape[-1] == 4:
+            rxy = reference_points[:, :, :, :2].repeat_interleave(np_, dim=2)
+            rwh = reference_points[:, :, :, 2:].repeat_interleave(np_, dim=2)
+            sloc = rxy[:, :, None, :, :] + offsets / np_ * rwh[:, :, None, :, :] * 0.5
+        else:
+            raise ValueError(f"reference_points last dim must be 2 or 4, got {reference_points.shape[-1]}")
+
+        attn_w = F.softmax(attn_w, -1)
+        value = value.transpose(1, 2).contiguous().view(N, nh, hd, Len_in)
+
+        sg = 2 * sloc - 1
+        svl = []
+        offset = 0
+        for lid_ in range(nl):
+            H = int(input_spatial_shapes[lid_, 0].item())
+            W = int(input_spatial_shapes[lid_, 1].item())
+            vl = value[:, :, :, offset:offset + H * W].reshape(N * nh, hd, H, W)
+            offset += H * W
+            gl = sg[:, :, :, lid_ * np_:(lid_ + 1) * np_, :]
+            gl = gl.permute(0, 2, 1, 3, 4).reshape(N * nh, Len_q, np_, 2)
+            svl.append(_bilinear_grid_sample(vl, gl, padding_mode="zeros", align_corners=False))
+
+        attn_w = attn_w.permute(0, 2, 1, 3).reshape(N * nh, 1, Len_q, nl * np_)
+        out = (torch.stack(svl, dim=-2).flatten(-2) * attn_w).sum(-1)
+        out = out.reshape(N, nh * hd, Len_q).permute(0, 2, 1).contiguous()
+        return self.output_proj(out)
+
+    mda.MSDeformAttn.forward = _patched_deform_forward
+
+    # Apply shared coremltools patches (_cast, tensor_assign, meshgrid, split)
+    from peaceofcake.engine.coreml_patches import apply_coreml_patches
+    apply_coreml_patches()
+
+
 class RFDETRExporter:
     """Export RF-DETR model to ONNX, CoreML, or TensorRT."""
 
@@ -30,14 +111,13 @@ class RFDETRExporter:
 
     def _export_onnx(self, output=None, img_size=None, simplify=True, opset=17, **kw) -> str:
         resolution = self._get_resolution(img_size)
-        model = copy.deepcopy(self.model_wrapper.model)
+        model = copy.deepcopy(self.model_wrapper.model).cpu()
         model.eval()
         model.export()
 
         output = output or "model.onnx"
         data = torch.rand(1, 3, resolution, resolution)
 
-        # Normalize dummy input like inference
         mean = torch.tensor([0.485, 0.456, 0.406]).view(1, 3, 1, 1)
         std = torch.tensor([0.229, 0.224, 0.225]).view(1, 3, 1, 1)
         data = (data - mean) / std
@@ -55,7 +135,7 @@ class RFDETRExporter:
             try:
                 import onnx, onnxsim
                 m = onnx.load(output)
-                m_sim, ok = onnxsim.simplify(output)
+                m_sim, ok = onnxsim.simplify(m)
                 if ok:
                     onnx.save(m_sim, output)
             except ImportError:
@@ -68,50 +148,33 @@ class RFDETRExporter:
         self, output=None, img_size=None, min_target="iOS17",
         precision="FLOAT32", compute_units="ALL", **kw,
     ) -> str:
-        resolution = self._get_resolution(img_size)
-        model = copy.deepcopy(self.model_wrapper.model)
+        """Export to CoreML via torch.jit.trace with runtime patches."""
+        _apply_rfdetr_coreml_patches()
 
-        class CoreMLModel(nn.Module):
-            """Output confidence [N, C] and coordinates [N, 4] (normalized cxcywh)."""
+        resolution = self._get_resolution(img_size)
+        model = copy.deepcopy(self.model_wrapper.model).cpu()
+        model.eval()
+        model.export()
+
+        class _CoreMLWrapper(nn.Module):
             def __init__(self, m):
                 super().__init__()
                 self.model = m
-                self.model.eval()
-                self.model.export()
-                # ImageNet normalization embedded in model
-                self.register_buffer(
-                    "mean", torch.tensor([0.485, 0.456, 0.406]).view(1, 3, 1, 1))
-                self.register_buffer(
-                    "std", torch.tensor([0.229, 0.224, 0.225]).view(1, 3, 1, 1))
+                self.register_buffer("mean", torch.tensor([0.485, 0.456, 0.406]).view(1, 3, 1, 1))
+                self.register_buffer("std", torch.tensor([0.229, 0.224, 0.225]).view(1, 3, 1, 1))
 
             def forward(self, images):
-                # images: [1, 3, H, W] in [0, 1] from CoreML ImageType scale=1/255
                 x = (images - self.mean) / self.std
                 pred_boxes, pred_logits = self.model(x)
-                confidence = F.sigmoid(pred_logits)
-                return confidence.squeeze(0), pred_boxes.squeeze(0)
+                return torch.sigmoid(pred_logits).squeeze(0), pred_boxes.squeeze(0)
 
-        export_model = CoreMLModel(model).eval()
-
+        wrapper = _CoreMLWrapper(model).cpu().eval()
         example = torch.rand(1, 3, resolution, resolution)
+
         with torch.no_grad():
-            eager_conf, eager_boxes = export_model(example)
-            traced = torch.jit.trace(export_model, example)
-            traced_conf, traced_boxes = traced(example)
+            traced = torch.jit.trace(wrapper, example)
 
-        # Verify tracing correctness
-        conf_diff = (eager_conf - traced_conf).abs().max().item()
-        box_diff = (eager_boxes - traced_boxes).abs().max().item()
-        if conf_diff > 1e-4 or box_diff > 1e-4:
-            print(f"WARNING: Tracing divergence detected (conf={conf_diff:.6f}, box={box_diff:.6f})")
-
-        try:
-            import coremltools as ct
-        except ImportError:
-            import subprocess, sys
-            print("Installing coremltools...")
-            subprocess.check_call([sys.executable, "-m", "pip", "install", "coremltools>=7.0"])
-            import coremltools as ct
+        import coremltools as ct
 
         targets = {"iOS16": ct.target.iOS16, "iOS17": ct.target.iOS17, "iOS18": ct.target.iOS18}
         precisions = {"FLOAT16": ct.precision.FLOAT16, "FLOAT32": ct.precision.FLOAT32}

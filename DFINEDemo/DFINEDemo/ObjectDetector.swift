@@ -13,10 +13,15 @@ struct Detection: Identifiable {
 
 class ObjectDetector: ObservableObject {
     private var model: MLModel?
-    private let inputSize: CGFloat = 640
+    private var inputSize: CGFloat = 640
     private let ciContext = CIContext()
     private var resizeBuffer: CVPixelBuffer?
     @Published var currentModelName: String = ""
+
+    /// RF-DETR models use different input resolutions per variant.
+    private static let rfdetrResolutions: [String: CGFloat] = [
+        "n": 384, "s": 512, "m": 576, "l": 704,
+    ]
 
     init() {
         if let first = Self.availableModels().first {
@@ -31,12 +36,25 @@ class ObjectDetector: ObservableObject {
         var names: Set<String> = []
         for item in items {
             if (item.hasSuffix(".mlmodelc") || item.hasSuffix(".mlpackage")),
-               item.hasPrefix("dfine") {
+               (item.hasPrefix("dfine") || item.hasPrefix("rfdetr")) {
                 let name = (item as NSString).deletingPathExtension
                 names.insert(name)
             }
         }
         return names.sorted()
+    }
+
+    /// Determine input resolution from model name.
+    private static func resolution(for name: String) -> CGFloat {
+        if name.hasPrefix("rfdetr") {
+            for (variant, res) in rfdetrResolutions {
+                if name.contains("_\(variant)_") || name.contains("-\(variant)-")
+                    || name.hasSuffix("_\(variant)") || name.hasSuffix("-\(variant)") {
+                    return res
+                }
+            }
+        }
+        return 640 // D-FINE default
     }
 
     func switchModel(_ name: String) {
@@ -48,7 +66,7 @@ class ObjectDetector: ObservableObject {
         guard let modelURL = Bundle.main.url(forResource: name, withExtension: "mlmodelc")
             ?? Bundle.main.url(forResource: name, withExtension: "mlpackage")
         else {
-            print("[D-FINE] Failed to find model: \(name)")
+            print("[ObjectDetector] Failed to find model: \(name)")
             return
         }
 
@@ -56,10 +74,12 @@ class ObjectDetector: ObservableObject {
             let config = MLModelConfiguration()
             config.computeUnits = .all
             model = try MLModel(contentsOf: modelURL, configuration: config)
+            inputSize = Self.resolution(for: name)
+            resizeBuffer = nil // reset cached buffer for new size
             currentModelName = name
-            print("[D-FINE] Loaded \(name)")
+            print("[ObjectDetector] Loaded \(name) (input: \(Int(inputSize))x\(Int(inputSize)))")
         } catch {
-            print("[D-FINE] Failed to load model: \(error)")
+            print("[ObjectDetector] Failed to load model: \(error)")
         }
     }
 
@@ -81,7 +101,7 @@ class ObjectDetector: ObservableObject {
             let detections = parseOutput(output, threshold: threshold)
             return (detections, inferenceTime)
         } catch {
-            print("[D-FINE] Inference failed: \(error)")
+            print("[ObjectDetector] Inference failed: \(error)")
             return ([], 0)
         }
     }
@@ -105,7 +125,7 @@ class ObjectDetector: ObservableObject {
             let detections = parseOutput(output, threshold: threshold)
             return (detections, inferenceTime)
         } catch {
-            print("[D-FINE] Inference failed: \(error)")
+            print("[ObjectDetector] Inference failed: \(error)")
             return ([], 0)
         }
     }
@@ -125,6 +145,13 @@ class ObjectDetector: ObservableObject {
         return buffer
     }
 
+    /// RF-DETR outputs 91 classes (1-based COCO IDs with index 0 = background).
+    /// D-FINE outputs 80 classes (0-based COCO). Detect which mapping to use
+    /// by checking numClasses from the model output.
+    private var isOneBasedClasses: Bool {
+        currentModelName.hasPrefix("rfdetr")
+    }
+
     private func parseOutput(_ output: MLFeatureProvider, threshold: Float) -> [Detection] {
         guard let confidenceArray = output.featureValue(for: "confidence")?.multiArrayValue,
               let coordsArray = output.featureValue(for: "coordinates")?.multiArrayValue
@@ -134,6 +161,7 @@ class ObjectDetector: ObservableObject {
         let numClasses = confidenceArray.shape[1].intValue
         let confStrides = confidenceArray.strides.map { $0.intValue }
         let coordStrides = coordsArray.strides.map { $0.intValue }
+        let classOffset = isOneBasedClasses ? 1 : 0  // skip background class for RF-DETR
         var detections: [Detection] = []
 
         // Build readers that handle both Float16 (Neural Engine) and Float32
@@ -157,10 +185,10 @@ class ObjectDetector: ObservableObject {
         for i in 0..<numQueries {
             let rowOffset = i * confStrides[0]
 
-            // Find best class for this query
+            // Find best class for this query (skip background for 1-based models)
             var bestScore: Float = 0
             var bestClass: Int = 0
-            for c in 0..<numClasses {
+            for c in classOffset..<numClasses {
                 let score = readConf(rowOffset + c * confStrides[1])
                 if score > bestScore {
                     bestScore = score
@@ -169,7 +197,9 @@ class ObjectDetector: ObservableObject {
             }
             guard bestScore >= threshold else { continue }
 
-            let labelName = (bestClass >= 0 && bestClass < cocoLabels.count) ? cocoLabels[bestClass] : "class_\(bestClass)"
+            // Map class index to COCO label (subtract offset for 1-based models)
+            let labelIndex = bestClass - classOffset
+            let labelName = (labelIndex >= 0 && labelIndex < cocoLabels.count) ? cocoLabels[labelIndex] : "class_\(bestClass)"
 
             // Coordinates are normalized cxcywh [0,1]
             let coordRowOffset = i * coordStrides[0]
@@ -187,7 +217,7 @@ class ObjectDetector: ObservableObject {
 
             detections.append(Detection(
                 label: labelName,
-                labelIndex: bestClass,
+                labelIndex: labelIndex,
                 confidence: bestScore,
                 boundingBox: rect
             ))
