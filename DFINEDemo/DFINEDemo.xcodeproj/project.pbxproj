@@ -20,6 +20,7 @@
 		A98F7BC47A2D887671144F33 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F996E2ADCCE50C01DBE559EC /* ContentView.swift */; };
 		MDLPKR001000000000000001 /* ModelPickerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = MDLPKR001000000000000002 /* ModelPickerView.swift */; };
 		RFDETR001000000000000001 /* rfdetr_n_coco.mlpackage in Sources */ = {isa = PBXBuildFile; fileRef = RFDETR001000000000000002 /* rfdetr_n_coco.mlpackage */; };
+		DFINE001000000000000001 /* dfine_n_coco.mlpackage in Sources */ = {isa = PBXBuildFile; fileRef = DFINE001000000000000002 /* dfine_n_coco.mlpackage */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -37,6 +38,7 @@
 		F996E2ADCCE50C01DBE559EC /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		MDLPKR001000000000000002 /* ModelPickerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelPickerView.swift; sourceTree = "<group>"; };
 		RFDETR001000000000000002 /* rfdetr_n_coco.mlpackage */ = {isa = PBXFileReference; lastKnownFileType = folder.mlpackage; name = rfdetr_n_coco.mlpackage; path = rfdetr_n_coco.mlpackage; sourceTree = "<group>"; };
+		DFINE001000000000000002 /* dfine_n_coco.mlpackage */ = {isa = PBXFileReference; lastKnownFileType = folder.mlpackage; name = dfine_n_coco.mlpackage; path = dfine_n_coco.mlpackage; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */
@@ -44,6 +46,7 @@
 			isa = PBXGroup;
 			children = (
 				68874E2F62D618ADCF27ADF1 /* DFINEDemo */,
+				DFINE001000000000000002 /* dfine_n_coco.mlpackage */,
 				RFDETR001000000000000002 /* rfdetr_n_coco.mlpackage */,
 				B39F481C02027B0579394D5D /* Products */,
 			);
@@ -154,6 +157,7 @@
 				2B98447111BDCED8D7D28383 /* DetectionOverlayView.swift in Sources */,
 				MDLPKR001000000000000001 /* ModelPickerView.swift in Sources */,
 				587EFB5261BCDB11C0ABBE17 /* ObjectDetector.swift in Sources */,
+				DFINE001000000000000001 /* dfine_n_coco.mlpackage in Sources */,
 				RFDETR001000000000000001 /* rfdetr_n_coco.mlpackage in Sources */,
 				A1B2C3D4E5F60718A9B0C1D2 /* VideoView.swift in Sources */,
 				A1B2C3D4E5F60718A9B0C1D4 /* VideoProcessor.swift in Sources */,
