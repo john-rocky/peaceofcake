@@ -39,6 +39,8 @@ struct VideoView: View {
 
                 // Controls overlay
                 VStack(spacing: 8) {
+                    ModelPickerView(detector: detector, availableModels: availableModels)
+
                     if processor.isPlaying {
                         ProgressView(value: processor.progress)
                             .tint(.white)
@@ -79,19 +81,6 @@ struct VideoView: View {
             .toolbarBackground(.hidden, for: .navigationBar)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    if availableModels.count > 1 {
-                        Picker("Model", selection: Binding(
-                            get: { detector.currentModelName },
-                            set: { detector.switchModel($0) }
-                        )) {
-                            ForEach(availableModels, id: \.self) { name in
-                                Text(name).tag(name)
-                            }
-                        }
-                        .pickerStyle(.menu)
-                    }
-                }
                 ToolbarItem(placement: .topBarTrailing) {
                     PhotosPicker(selection: $selectedItem, matching: .videos) {
                         Image(systemName: "video.badge.plus")

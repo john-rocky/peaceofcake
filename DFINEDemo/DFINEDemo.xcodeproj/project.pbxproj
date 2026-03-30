@@ -18,6 +18,7 @@
 		A1B2C3D4E5F60718A9B0C1D2 /* VideoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60718A9B0C1D3 /* VideoView.swift */; };
 		A1B2C3D4E5F60718A9B0C1D4 /* VideoProcessor.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60718A9B0C1D5 /* VideoProcessor.swift */; };
 		A98F7BC47A2D887671144F33 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F996E2ADCCE50C01DBE559EC /* ContentView.swift */; };
+		MDLPKR001000000000000001 /* ModelPickerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = MDLPKR001000000000000002 /* ModelPickerView.swift */; };
 		RFDETR001000000000000001 /* rfdetr_n_coco.mlpackage in Sources */ = {isa = PBXBuildFile; fileRef = RFDETR001000000000000002 /* rfdetr_n_coco.mlpackage */; };
 /* End PBXBuildFile section */
 
@@ -34,6 +35,7 @@
 		E2DC5CDCACF58A6E297DAF09 /* DFINEDemoApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DFINEDemoApp.swift; sourceTree = "<group>"; };
 		E726A3233C1717EFA8C6170C /* CameraManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraManager.swift; sourceTree = "<group>"; };
 		F996E2ADCCE50C01DBE559EC /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
+		MDLPKR001000000000000002 /* ModelPickerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelPickerView.swift; sourceTree = "<group>"; };
 		RFDETR001000000000000002 /* rfdetr_n_coco.mlpackage */ = {isa = PBXFileReference; lastKnownFileType = folder.mlpackage; name = rfdetr_n_coco.mlpackage; path = rfdetr_n_coco.mlpackage; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -58,6 +60,7 @@
 				F996E2ADCCE50C01DBE559EC /* ContentView.swift */,
 				B75E0574344E49F5B363CD4C /* DetectionOverlayView.swift */,
 				E2DC5CDCACF58A6E297DAF09 /* DFINEDemoApp.swift */,
+				MDLPKR001000000000000002 /* ModelPickerView.swift */,
 				0DD4C9DF62F6ECFFC0EEA347 /* ObjectDetector.swift */,
 				A1B2C3D4E5F60718A9B0C1D3 /* VideoView.swift */,
 				A1B2C3D4E5F60718A9B0C1D5 /* VideoProcessor.swift */,
@@ -149,6 +152,7 @@
 				A98F7BC47A2D887671144F33 /* ContentView.swift in Sources */,
 				7449D30EF2710263B8074286 /* DFINEDemoApp.swift in Sources */,
 				2B98447111BDCED8D7D28383 /* DetectionOverlayView.swift in Sources */,
+				MDLPKR001000000000000001 /* ModelPickerView.swift in Sources */,
 				587EFB5261BCDB11C0ABBE17 /* ObjectDetector.swift in Sources */,
 				RFDETR001000000000000001 /* rfdetr_n_coco.mlpackage in Sources */,
 				A1B2C3D4E5F60718A9B0C1D2 /* VideoView.swift in Sources */,
